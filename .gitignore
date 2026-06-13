@@ -1,0 +1,35 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# builds
+dist/
+build/
+*.tsbuildinfo
+
+# turbo
+.turbo/
+
+# env
+.env
+.env.*
+!.env.example
+
+# prisma
+apps/api/prisma/*.db
+apps/api/src/generated/
+
+# logs
+*.log
+npm-debug.log*
+
+# docs local-only (não publicados no repo público — ver CLAUDE.md "Estado atual")
+/docs/
+/CLAUDE.md
+/PRD.md
+
+# editor / os
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea/
