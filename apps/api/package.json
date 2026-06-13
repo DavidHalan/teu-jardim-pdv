@@ -1,0 +1,41 @@
+{
+  "name": "@teu-jardim/api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "postinstall": "prisma generate",
+    "build": "prisma generate && nest build",
+    "dev": "nest start --watch",
+    "start": "node dist/main.js",
+    "prisma": "prisma",
+    "lint": "echo \"(api) lint TODO\"",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "echo \"(api) testes entram na primeira slice (TDD)\""
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.1.26",
+    "@nestjs/config": "^4.0.4",
+    "@nestjs/core": "^11.1.26",
+    "@nestjs/platform-express": "^11.1.26",
+    "@nestjs/platform-socket.io": "^11.1.26",
+    "@nestjs/websockets": "^11.1.26",
+    "@prisma/adapter-pg": "^7.8.0",
+    "@prisma/client": "^7.8.0",
+    "@teu-jardim/shared": "workspace:*",
+    "dotenv": "^17.4.2",
+    "pg": "^8.21.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "socket.io": "^4.8.3"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.23",
+    "@nestjs/schematics": "^11.1.0",
+    "@types/node": "^24.0.0",
+    "prisma": "^7.8.0",
+    "source-map-support": "^0.5.21",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^6.0.3"
+  }
+}
