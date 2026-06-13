@@ -1,0 +1,75 @@
+/**
+ * Contratos compartilhados entre `apps/api` e `apps/web`.
+ * Enums refletem a linguagem ubíqua — ver docs/glossary.md.
+ * Nomes em inglês (código); termos de negócio mapeados no glossário.
+ */
+
+/** Perfil de usuário (RB-040..RB-042). */
+export enum Role {
+  EMPLOYEE = 'EMPLOYEE',
+  CASHIER = 'CASHIER',
+  ADMIN = 'ADMIN',
+}
+
+/** Tipo da conta de consumo: pulseira / comanda / mesa (RB-002). */
+export enum TabType {
+  WRISTBAND = 'WRISTBAND',
+  COMANDA = 'COMANDA',
+  TABLE = 'TABLE',
+}
+
+/** Estado da conta-sessão (RB-004). */
+export enum AccountStatus {
+  OPEN = 'OPEN',
+  PAID = 'PAID',
+  CANCELED = 'CANCELED',
+}
+
+/** Tipo de produto (RB-013). */
+export enum ProductType {
+  UNIT = 'UNIT',
+  WEIGHED = 'WEIGHED',
+}
+
+/** Status de produção do item no KDS (RB-023). */
+export enum KdsStatus {
+  PENDING = 'PENDING',
+  IN_PRODUCTION = 'IN_PRODUCTION',
+  READY = 'READY',
+  DELIVERED = 'DELIVERED',
+  CANCELED = 'CANCELED',
+}
+
+/** Tipo de movimentação de caixa (RB-010). */
+export enum CashMovementType {
+  SALE_RECEIPT = 'SALE_RECEIPT',
+  WITHDRAWAL = 'WITHDRAWAL',
+  SUPPLY = 'SUPPLY',
+}
+
+/** Tipo de desconto (RB-027). */
+export enum DiscountType {
+  PERCENT = 'PERCENT',
+  FIXED = 'FIXED',
+}
+
+/** Forma de pagamento (RB-037). */
+export enum PaymentMethod {
+  CASH = 'CASH',
+  PIX = 'PIX',
+  CREDIT = 'CREDIT',
+  DEBIT = 'DEBIT',
+}
+
+/** Status genérico aberto/fechado (operação e caixa). */
+export enum OpenClosedStatus {
+  OPEN = 'OPEN',
+  CLOSED = 'CLOSED',
+}
+
+/** Resposta do health check da API. */
+export interface HealthResponse {
+  status: 'ok';
+  service: string;
+  timestamp: string;
+}
