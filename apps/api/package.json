@@ -10,7 +10,9 @@
     "prisma": "prisma",
     "lint": "echo \"(api) lint TODO\"",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "echo \"(api) testes entram na primeira slice (TDD)\""
+    "test": "vitest run",
+    "test:e2e": "vitest run --config vitest.config.e2e.ts",
+    "db:seed": "ts-node prisma/seed.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.26",
