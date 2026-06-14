@@ -8,6 +8,24 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: pdv
+          POSTGRES_PASSWORD: pdv
+          POSTGRES_DB: teu_jardim
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pdv -d teu_jardim"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://pdv:pdv@localhost:5432/teu_jardim?schema=public
+      JWT_SECRET: ci-test-secret-not-for-production
+
     steps:
       - uses: actions/checkout@v4
 
@@ -31,5 +49,11 @@ jobs:
       - name: Build
         run: pnpm build
 
-      - name: Test
+      - name: Apply migrations
+        run: pnpm --filter @teu-jardim/api exec prisma migrate deploy
+
+      - name: Test (unit)
         run: pnpm test
+
+      - name: Test (e2e)
+        run: pnpm --filter @teu-jardim/api test:e2e
