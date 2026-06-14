@@ -6,6 +6,8 @@ import { HealthModule } from './modules/health/health.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { BusinessSessionsModule } from './modules/business-sessions/business-sessions.module';
+import { RegistersModule } from './modules/registers/registers.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { RolesGuard } from './modules/auth/guards/roles.guard';
 
@@ -16,6 +18,8 @@ import { RolesGuard } from './modules/auth/guards/roles.guard';
     AuditModule,
     UsersModule,
     AuthModule,
+    BusinessSessionsModule,
+    RegistersModule,
     HealthModule,
   ],
   providers: [
