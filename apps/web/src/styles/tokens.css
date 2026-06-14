@@ -1,0 +1,30 @@
+:root {
+  /* Cores (DESIGN.md) — âncora oliva do logo, canvas creme, acento oliva-fundo */
+  --tj-olive: #8D955C;          /* âncora — verde-oliva do logo (borda ativa, acento) */
+  --tj-olive-mid: #6E7547;      /* oliva médio — borda hover */
+  --tj-cream: #F4F2E8;          /* canvas claro do app */
+  --tj-canvas-soft: #ECEADD;    /* zonas / separadores */
+  --tj-surface: #FCFBF6;        /* cartão / input — quase-branco morno */
+  --tj-cta: #3E4626;            /* CTA oliva-fundo (texto creme por cima) */
+  --tj-cta-contrast: #F4F2E8;
+  --tj-ink: #1A1B12;            /* títulos / texto primário (quase-preto morno) */
+  --tj-body: #44473A;           /* corpo */
+  --tj-muted: #6F7263;          /* secundário / metadado */
+  --tj-faint: #9A9C8E;          /* placeholder / caption */
+  --tj-hairline: #E3E0D2;       /* borda 1px / divisor padrão */
+  --tj-hairline-strong: #CFCBB8;/* borda hover / ênfase */
+  --tj-pale: #E7E9D8;           /* tint selecionado / ring de foco */
+  --tj-danger: #C7472E;         /* erro (terracota) */
+  --tj-danger-text: #9A3B26;
+  --tj-danger-pale: #F4DAD1;
+
+  /* Tipografia */
+  --tj-font-display: 'Fraunces', Georgia, serif;  /* títulos/marca */
+  --tj-font-ui: 'Inter', system-ui, sans-serif;   /* UI densa/números */
+
+  /* Espaçamento / raio */
+  --tj-space-1: 4px; --tj-space-2: 8px; --tj-space-3: 16px; --tj-space-4: 24px; --tj-space-5: 40px;
+  --tj-radius: 10px;       /* cartão */
+  --tj-radius-input: 6px;  /* input / chip */
+  --tj-radius-pill: 9999px;/* botões */
+}
