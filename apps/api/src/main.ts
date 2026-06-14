@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
+import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 
 async function bootstrap(): Promise<void> {
@@ -8,6 +9,9 @@ async function bootstrap(): Promise<void> {
   const config = app.get(ConfigService);
 
   app.setGlobalPrefix('api');
+  app.useGlobalPipes(
+    new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }),
+  );
   app.enableCors({
     origin: config.get<string>('WEB_ORIGIN') ?? '*',
   });
