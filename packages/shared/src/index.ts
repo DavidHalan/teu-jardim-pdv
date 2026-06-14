@@ -73,3 +73,29 @@ export interface HealthResponse {
   service: string;
   timestamp: string;
 }
+
+/** Credenciais de login (RB-040..042). */
+export interface LoginRequest {
+  username: string;
+  password: string;
+}
+
+/** Usuário autenticado exposto ao cliente (sem hash de senha). */
+export interface AuthUser {
+  id: string;
+  name: string;
+  role: Role;
+}
+
+/** Resposta do login: token de acesso + usuário. */
+export interface LoginResponse {
+  accessToken: string;
+  user: AuthUser;
+}
+
+/** Payload assinado no JWT (access-only). */
+export interface JwtPayload {
+  sub: string; // user id
+  name: string;
+  role: Role;
+}
