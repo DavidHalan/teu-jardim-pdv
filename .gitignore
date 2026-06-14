@@ -24,9 +24,24 @@ apps/api/src/generated/
 npm-debug.log*
 
 # docs local-only (não publicados no repo público — ver CLAUDE.md "Estado atual")
+# inclui docs/referencias/ (design systems) e docs/PRODUCT.md + docs/DESIGN.md (impeccable)
 /docs/
 /CLAUDE.md
 /PRD.md
+
+# config local do Claude Code (hooks/permissões/settings) — local-only
+/.claude/
+
+# graphify (knowledge graph) — saída e temporários, local-only
+/graphify-out/
+/.graphify*
+/raw/
+
+# Playwright MCP — artefatos de verificação de UI (logs/snapshots), local-only
+/.playwright-mcp/
+
+# asset de marca (referência de design, não usado pelo runnable) — local-only
+/LOGO.jpg
 
 # editor / os
 .DS_Store
