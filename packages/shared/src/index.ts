@@ -99,3 +99,44 @@ export interface JwtPayload {
   name: string;
   role: Role;
 }
+
+/** Operação / período operacional (RB-006..008). */
+export interface BusinessSessionDto {
+  id: string;
+  name: string;
+  status: OpenClosedStatus;
+  openedById: string;
+  openedAt: string; // ISO 8601
+  closedAt: string | null;
+}
+
+/** Abertura de operação. */
+export interface OpenSessionRequest {
+  name: string;
+}
+
+/** GET /business-sessions/current — embrulhado para JSON sempre válido (evita corpo vazio quando null). */
+export interface CurrentSessionResponse {
+  session: BusinessSessionDto | null;
+}
+
+/** Caixa (RB-009..012). `openingAmount` = string decimal canônica (ex.: "100.00"); nunca float (RB-047). */
+export interface RegisterDto {
+  id: string;
+  businessSessionId: string;
+  operatorId: string;
+  openingAmount: string;
+  status: OpenClosedStatus;
+  openedAt: string; // ISO 8601
+  closedAt: string | null;
+}
+
+/** Abertura de caixa (RB-009). */
+export interface OpenRegisterRequest {
+  openingAmount: string; // string decimal, ex.: "100.00"
+}
+
+/** GET /registers/current — caixa OPEN do operador logado (ou null). */
+export interface CurrentRegisterResponse {
+  register: RegisterDto | null;
+}
