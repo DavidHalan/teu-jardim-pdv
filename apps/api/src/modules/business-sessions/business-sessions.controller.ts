@@ -22,4 +22,10 @@ export class BusinessSessionsController {
   open(@Body() dto: OpenSessionDto, @CurrentUser() user: JwtPayload): Promise<BusinessSessionDto> {
     return this.sessions.openSession(dto.name, user.sub);
   }
+
+  @Roles(Role.CASHIER)
+  @Post('current/close')
+  close(@CurrentUser() user: JwtPayload): Promise<BusinessSessionDto> {
+    return this.sessions.closeSession(user.sub);
+  }
 }

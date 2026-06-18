@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import { Role } from '@teu-jardim/shared';
 import type {
   AccountDto,
   AccountListResponse,
@@ -7,6 +8,9 @@ import type {
 import { AccountsService } from './accounts.service';
 import { OpenAccountDto } from './dto/open-account.dto';
 import { PlaceItemsDto } from './dto/place-items.dto';
+import { ApplyDiscountDto } from './dto/apply-discount.dto';
+import { CancelAccountDto } from './dto/cancel-account.dto';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 // Sem @Roles: qualquer autenticado (garçom lança pedidos — RB-040). RolesGuard global libera.
@@ -36,5 +40,25 @@ export class AccountsController {
     @CurrentUser() user: JwtPayload,
   ): Promise<AccountDto> {
     return this.accounts.placeItems(id, dto.items, user.sub);
+  }
+
+  @Roles(Role.CASHIER)
+  @Post(':id/discount')
+  discount(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ApplyDiscountDto,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<AccountDto> {
+    return this.accounts.applyDiscount(id, dto.type, dto.value, user.sub, dto.reason);
+  }
+
+  @Roles(Role.CASHIER)
+  @Post(':id/cancel')
+  cancel(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CancelAccountDto,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<AccountDto> {
+    return this.accounts.cancelAccount(id, dto.reason, user.sub);
   }
 }
