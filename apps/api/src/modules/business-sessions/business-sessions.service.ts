@@ -47,4 +47,34 @@ export class BusinessSessionsService {
     });
     return toDto(s);
   }
+
+  /** Encerra a operação (RB-007). Pré-condição RB-007b: nenhum caixa OPEN e nenhuma conta OPEN. */
+  async closeSession(userId: string): Promise<BusinessSessionDto> {
+    const session = await this.prisma.businessSession.findFirst({ where: { status: 'OPEN' } });
+    if (!session) throw new ConflictException('Nenhuma operação aberta.');
+
+    const openRegisters = await this.prisma.register.count({
+      where: { businessSessionId: session.id, status: 'OPEN' },
+    });
+    if (openRegisters > 0) {
+      throw new ConflictException('Há caixa(s) aberto(s). Feche todos os caixas antes de encerrar a operação.');
+    }
+    const openAccounts = await this.prisma.account.count({
+      where: { businessSessionId: session.id, status: 'OPEN' },
+    });
+    if (openAccounts > 0) {
+      throw new ConflictException('Há conta(s) aberta(s). Pague ou cancele antes de encerrar a operação.');
+    }
+
+    const closed = await this.prisma.businessSession.update({
+      where: { id: session.id },
+      data: { status: 'CLOSED', closedAt: new Date() },
+    });
+    await this.audit.log('SESSION_CLOSE', {
+      userId,
+      entityType: 'BusinessSession',
+      entityId: closed.id,
+    });
+    return toDto(closed);
+  }
 }
