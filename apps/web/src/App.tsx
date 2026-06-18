@@ -5,6 +5,7 @@ import { Login } from './screens/Login';
 import { Home } from './screens/Home';
 import { NewOrder } from './screens/NewOrder';
 import { OrderScreen } from './screens/OrderScreen';
+import { PayScreen } from './screens/PayScreen';
 
 export function App(): React.JSX.Element {
   const { isAuthenticated } = useAuth();
@@ -32,6 +33,14 @@ export function App(): React.JSX.Element {
         element={
           <ProtectedRoute>
             <OrderScreen />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/conta/:id/pagar"
+        element={
+          <ProtectedRoute>
+            <PayScreen />
           </ProtectedRoute>
         }
       />

@@ -2,12 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { AccountDto, ProductDto } from '@teu-jardim/shared';
+import { Role, DiscountType } from '@teu-jardim/shared';
 import type { CartLine } from '../accounts/cart';
 import { previewLineTotal, previewCartTotal, toPlaceItems } from '../accounts/cart';
 import { useCatalog } from '../catalog/useCatalog';
 import { accountsApi } from '../accounts/accounts-api';
 import { formatBRL } from '../lib/money';
 import { ApiError } from '../lib/api';
+import { useAuth } from '../auth/AuthContext';
 
 /**
  * Tela de pedido (PRD §12 passos 2–6, RB-018). Com a conta escolhida, o garçom
@@ -18,6 +20,7 @@ import { ApiError } from '../lib/api';
 export function OrderScreen(): React.JSX.Element {
   const { id = '' } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { loading, categories, error } = useCatalog();
 
   const [account, setAccount] = useState<AccountDto | null>(null);
@@ -27,6 +30,20 @@ export function OrderScreen(): React.JSX.Element {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [done, setDone] = useState<AccountDto | null>(null);
+
+  // Cashier actions state
+  const [showDiscount, setShowDiscount] = useState(false);
+  const [discountType, setDiscountType] = useState<DiscountType>(DiscountType.PERCENT);
+  const [discountValue, setDiscountValue] = useState('');
+  const [discountReason, setDiscountReason] = useState('');
+  const [discountSubmitting, setDiscountSubmitting] = useState(false);
+  const [discountError, setDiscountError] = useState<string | null>(null);
+  const [showCancel, setShowCancel] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelSubmitting, setCancelSubmitting] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+
+  const isCashier = user?.role === Role.CASHIER || user?.role === Role.ADMIN;
 
   useEffect(() => {
     let alive = true;
@@ -71,6 +88,49 @@ export function OrderScreen(): React.JSX.Element {
       });
   }
 
+  function applyDiscount(): void {
+    if (!discountValue.trim() || discountSubmitting) return;
+    setDiscountError(null);
+    setDiscountSubmitting(true);
+    accountsApi
+      .applyDiscount(id, {
+        type: discountType,
+        value: discountValue.trim(),
+        reason: discountReason.trim() || undefined,
+      })
+      .then((updated) => {
+        setAccount(updated);
+        setShowDiscount(false);
+        setDiscountValue('');
+        setDiscountReason('');
+      })
+      .catch((err) => {
+        setDiscountError(
+          err instanceof ApiError && (err.status === 400 || err.status === 409)
+            ? err.message
+            : 'Não foi possível aplicar o desconto.',
+        );
+      })
+      .finally(() => setDiscountSubmitting(false));
+  }
+
+  function cancelAccount(): void {
+    if (!cancelReason.trim() || cancelSubmitting) return;
+    setCancelError(null);
+    setCancelSubmitting(true);
+    accountsApi
+      .cancel(id, { reason: cancelReason.trim() })
+      .then(() => navigate('/'))
+      .catch((err) => {
+        setCancelError(
+          err instanceof ApiError && (err.status === 400 || err.status === 409)
+            ? err.message
+            : 'Não foi possível cancelar a conta.',
+        );
+        setCancelSubmitting(false);
+      });
+  }
+
   if (done) {
     return <Confirmation account={done} navigate={navigate} />;
   }
@@ -96,6 +156,204 @@ export function OrderScreen(): React.JSX.Element {
         </button>
         <span style={styles.headTitle}>{account ? accountLabel(account) : 'Conta'}</span>
       </header>
+
+      {/* Ações de caixa — visível apenas para CASHIER / ADMIN (RB-026..031) */}
+      {isCashier && account ? (
+        <div style={styles.cashierBlock}>
+          {/* Totais da conta */}
+          <div style={styles.cashierTotals}>
+            <div style={styles.cashierTotalRow}>
+              <span style={styles.cashierLabel}>Subtotal</span>
+              <span style={styles.cashierValue}>{formatBRL(account.subtotal)}</span>
+            </div>
+            {account.discountTotal !== '0.00' ? (
+              <div style={styles.cashierTotalRow}>
+                <span style={styles.cashierLabel}>Desconto</span>
+                <span style={{ ...styles.cashierValue, color: 'var(--tj-danger-text)' }}>
+                  − {formatBRL(account.discountTotal)}
+                </span>
+              </div>
+            ) : null}
+            <div style={{ ...styles.cashierTotalRow, ...styles.cashierTotalStrong }}>
+              <span style={styles.cashierTotalLabel}>Total</span>
+              <span style={styles.cashierTotalAmount}>{formatBRL(account.total)}</span>
+            </div>
+          </div>
+
+          {/* Desconto inline */}
+          {showDiscount ? (
+            <div style={styles.cashierForm}>
+              <div style={styles.cashierFormTitle}>Aplicar desconto</div>
+              <div style={styles.discountTypeSeg} role="group" aria-label="Tipo de desconto">
+                {(
+                  [
+                    { value: DiscountType.PERCENT, label: '%' },
+                    { value: DiscountType.FIXED, label: 'R$' },
+                  ] as const
+                ).map(({ value, label }) => {
+                  const on = discountType === value;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => setDiscountType(value)}
+                      style={{ ...styles.segBtn, ...(on ? styles.segBtnOn : null) }}
+                      className="tj-press"
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={styles.field}>
+                <label htmlFor="tj-disc-value" style={styles.label}>
+                  {discountType === DiscountType.PERCENT ? 'Percentual (%)' : 'Valor (R$)'}
+                </label>
+                <input
+                  id="tj-disc-value"
+                  type="text"
+                  inputMode="decimal"
+                  value={discountValue}
+                  onChange={(e) => setDiscountValue(e.target.value)}
+                  placeholder={discountType === DiscountType.PERCENT ? 'Ex.: 10' : 'Ex.: 5.00'}
+                  style={styles.input}
+                  className="tj-input"
+                />
+              </div>
+              <div style={styles.field}>
+                <label htmlFor="tj-disc-reason" style={styles.label}>
+                  Motivo (opcional)
+                </label>
+                <input
+                  id="tj-disc-reason"
+                  type="text"
+                  value={discountReason}
+                  onChange={(e) => setDiscountReason(e.target.value)}
+                  placeholder="Ex.: Cortesia gerência"
+                  style={styles.input}
+                  className="tj-input"
+                />
+              </div>
+              {discountError ? (
+                <p role="alert" style={styles.error}>
+                  {discountError}
+                </p>
+              ) : null}
+              <div style={styles.formActions}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowDiscount(false);
+                    setDiscountValue('');
+                    setDiscountReason('');
+                    setDiscountError(null);
+                  }}
+                  style={styles.ghost}
+                  className="tj-press"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={applyDiscount}
+                  disabled={!discountValue.trim() || discountSubmitting}
+                  style={{
+                    ...styles.cta,
+                    ...(!discountValue.trim() || discountSubmitting ? styles.ctaDisabled : null),
+                  }}
+                  className="tj-press"
+                >
+                  {discountSubmitting ? 'Aplicando…' : 'Aplicar'}
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Cancelar inline */}
+          {showCancel ? (
+            <div style={{ ...styles.cashierForm, ...styles.cashierFormDanger }}>
+              <div style={styles.cashierFormTitle}>Cancelar conta</div>
+              <div style={styles.field}>
+                <label htmlFor="tj-cancel-reason" style={styles.label}>
+                  Motivo (obrigatório)
+                </label>
+                <input
+                  id="tj-cancel-reason"
+                  type="text"
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  placeholder="Ex.: Desistência do cliente"
+                  style={styles.input}
+                  className="tj-input"
+                  autoFocus
+                />
+              </div>
+              {cancelError ? (
+                <p role="alert" style={styles.error}>
+                  {cancelError}
+                </p>
+              ) : null}
+              <div style={styles.formActions}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCancel(false);
+                    setCancelReason('');
+                    setCancelError(null);
+                  }}
+                  style={styles.ghost}
+                  className="tj-press"
+                >
+                  Não cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={cancelAccount}
+                  disabled={!cancelReason.trim() || cancelSubmitting}
+                  style={{
+                    ...styles.ctaDanger,
+                    ...(!cancelReason.trim() || cancelSubmitting ? styles.ctaDisabled : null),
+                  }}
+                  className="tj-press"
+                >
+                  {cancelSubmitting ? 'Cancelando…' : 'Confirmar cancelamento'}
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Botões de ação */}
+          {!showDiscount && !showCancel ? (
+            <div style={styles.cashierActions}>
+              <button
+                type="button"
+                onClick={() => setShowDiscount(true)}
+                style={styles.ghost}
+                className="tj-press"
+              >
+                Aplicar desconto
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCancel(true)}
+                style={styles.ghostDanger}
+                className="tj-press"
+              >
+                Cancelar conta
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate(`/conta/${id}/pagar`)}
+                style={styles.cta}
+                className="tj-press"
+              >
+                Pagar
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {loading ? (
         <p style={styles.state} aria-live="polite">
@@ -840,6 +1098,120 @@ const styles: Record<string, CSSProperties> = {
     borderTop: '1px solid var(--tj-hairline)',
   },
   sheetActions: { display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 'var(--tj-space-3)' },
+
+  // Cashier block
+  cashierBlock: {
+    maxWidth: '1040px',
+    margin: '0 auto',
+    padding: 'var(--tj-space-3) var(--tj-space-4) 0',
+    display: 'grid',
+    gap: 'var(--tj-space-3)',
+  },
+  cashierTotals: {
+    background: 'var(--tj-surface)',
+    border: '1px solid var(--tj-hairline)',
+    borderRadius: 'var(--tj-radius)',
+    padding: 'var(--tj-space-3) var(--tj-space-4)',
+    display: 'grid',
+    gap: '6px',
+    boxShadow: '0 1px 2px rgba(26, 27, 18, 0.06)',
+  },
+  cashierTotalRow: {
+    display: 'flex',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+  },
+  cashierTotalStrong: {
+    borderTop: '1px solid var(--tj-hairline)',
+    paddingTop: '8px',
+    marginTop: '4px',
+  },
+  cashierLabel: { fontSize: '13px', fontWeight: 500, color: 'var(--tj-muted)' },
+  cashierValue: { fontSize: '15px', fontWeight: 600, color: 'var(--tj-ink)', fontVariantNumeric: 'tabular-nums' },
+  cashierTotalLabel: { fontSize: '15px', fontWeight: 600, color: 'var(--tj-body)' },
+  cashierTotalAmount: {
+    fontSize: '24px',
+    fontWeight: 700,
+    color: 'var(--tj-ink)',
+    fontVariantNumeric: 'tabular-nums',
+    fontFamily: 'var(--tj-font-display)',
+  },
+  cashierForm: {
+    background: 'var(--tj-surface)',
+    border: '1px solid var(--tj-hairline)',
+    borderRadius: 'var(--tj-radius)',
+    padding: 'var(--tj-space-4)',
+    display: 'grid',
+    gap: 'var(--tj-space-3)',
+    boxShadow: '0 1px 2px rgba(26, 27, 18, 0.06)',
+  },
+  cashierFormDanger: {
+    borderColor: 'var(--tj-danger-text)',
+  },
+  cashierFormTitle: {
+    fontSize: '15px',
+    fontWeight: 600,
+    color: 'var(--tj-body)',
+  },
+  discountTypeSeg: {
+    display: 'inline-flex',
+    gap: '4px',
+  },
+  segBtn: {
+    flex: '1 1 auto',
+    minHeight: '40px',
+    padding: '0 var(--tj-space-3)',
+    fontFamily: 'var(--tj-font-ui)',
+    fontSize: '14px',
+    fontWeight: 600,
+    color: 'var(--tj-body)',
+    background: 'var(--tj-canvas-soft)',
+    border: '1px solid var(--tj-hairline)',
+    borderRadius: 'var(--tj-radius-pill)',
+    cursor: 'pointer',
+    transition: 'background 120ms ease, color 120ms ease, border-color 120ms ease',
+  },
+  segBtnOn: {
+    color: 'var(--tj-cta-contrast)',
+    background: 'var(--tj-cta)',
+    border: '1px solid var(--tj-cta)',
+  },
+  formActions: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1.5fr',
+    gap: 'var(--tj-space-3)',
+  },
+  cashierActions: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+    gap: 'var(--tj-space-2)',
+  },
+  ghostDanger: {
+    minHeight: '48px',
+    padding: '0 var(--tj-space-4)',
+    fontFamily: 'var(--tj-font-ui)',
+    fontSize: '15px',
+    fontWeight: 600,
+    color: 'var(--tj-danger-text)',
+    background: 'transparent',
+    border: '1px solid var(--tj-danger-text)',
+    borderRadius: 'var(--tj-radius-pill)',
+    cursor: 'pointer',
+    transition: 'transform 80ms ease, opacity 120ms ease',
+  },
+  ctaDanger: {
+    minHeight: '48px',
+    padding: '0 var(--tj-space-4)',
+    fontFamily: 'var(--tj-font-ui)',
+    fontSize: '15px',
+    fontWeight: 600,
+    color: '#fff',
+    background: 'var(--tj-danger-text)',
+    border: 'none',
+    borderRadius: 'var(--tj-radius-pill)',
+    cursor: 'pointer',
+    transition: 'transform 80ms ease, opacity 120ms ease',
+  },
 
   // Confirmação
   confirmMain: {
