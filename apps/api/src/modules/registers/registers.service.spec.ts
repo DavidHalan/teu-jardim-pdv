@@ -67,3 +67,36 @@ describe('RegistersService.getCurrentForOperator', () => {
     expect(await service.getCurrentForOperator('u1')).toBeNull();
   });
 });
+
+import { Prisma } from '../../generated/prisma/client';
+
+// Só os guards (ambos disparam ANTES do tx.register.update, então o mock fica simples).
+// O cálculo esperado/diferença já está coberto pelo register-math (Task 2) e pelo e2e (Task 8).
+describe('RegistersService.closeRegister (guards)', () => {
+  const openRegister = { id: 'r1', businessSessionId: 's1', operatorId: 'u1', openingAmount: new Prisma.Decimal('100.00'), status: 'OPEN' };
+
+  // `'register' in over` distingue "não passou" de "passou null" (null ?? default daria o default).
+  const makeClose = (over: { openAccounts?: number; register?: any } = {}) => {
+    const register = 'register' in over ? over.register : openRegister;
+    const tx = {
+      register: { findFirst: vi.fn().mockResolvedValue(register), update: vi.fn().mockResolvedValue({}) },
+      account: { count: vi.fn().mockResolvedValue(over.openAccounts ?? 0) },
+      cashMovement: { aggregate: vi.fn().mockResolvedValue({ _sum: { amount: new Prisma.Decimal('0') } }) },
+    };
+    const prisma = {
+      $transaction: vi.fn(async (cb: any) => cb(tx)),
+      businessSession: { findFirst: vi.fn().mockResolvedValue({ id: 's1', status: 'OPEN' }) },
+    } as any;
+    return { service: new RegistersService(prisma, { log: vi.fn() } as any, {} as any) };
+  };
+
+  it('bloqueia o fechamento se houver conta OPEN na operação (RB-012/012a → 409)', async () => {
+    const { service } = makeClose({ openAccounts: 1 });
+    await expect(service.closeRegister('u1', '130.00')).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('rejeita fechar quando o operador não tem caixa aberto (409)', async () => {
+    const { service } = makeClose({ register: null });
+    await expect(service.closeRegister('u1', '130.00')).rejects.toBeInstanceOf(ConflictException);
+  });
+});
