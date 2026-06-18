@@ -8,7 +8,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { BusinessSessionsService } from '../business-sessions/business-sessions.service';
 import { computeLine } from './account-math';
-import { AccountStatus, ProductType, TabType } from '@teu-jardim/shared';
+import { computeDiscountTotal } from './account-discount';
+import { AccountStatus, DiscountType, ProductType, TabType } from '@teu-jardim/shared';
 import type {
   AccountDto,
   AccountListResponse,
@@ -196,6 +197,64 @@ export class AccountsService {
       entityType: 'Account',
       entityId: accountId,
       metadata: { itemCount: inputs.length },
+    });
+    return this.getById(accountId);
+  }
+
+  /** Aplica desconto na conta (RB-026/027/028). Recalcula o total. Caixa-gated no controller. */
+  async applyDiscount(
+    accountId: string,
+    type: DiscountType,
+    value: string,
+    userId: string,
+    reason?: string,
+  ): Promise<AccountDto> {
+    await this.prisma.$transaction(async (tx) => {
+      const account = await tx.account.findUnique({ where: { id: accountId } });
+      if (!account) throw new NotFoundException('Conta não encontrada.');
+      if (account.status !== 'OPEN') throw new ConflictException('A conta não está aberta.');
+
+      const discountTotal = computeDiscountTotal(account.subtotal, type, new Prisma.Decimal(value));
+      const total = account.subtotal.sub(discountTotal).toDecimalPlaces(2);
+
+      await tx.discount.create({
+        data: { accountId, type, value, appliedById: userId, reason },
+      });
+      await tx.account.update({ where: { id: accountId }, data: { discountTotal, total } });
+    });
+
+    await this.audit.log('DISCOUNT_APPLIED', {
+      userId,
+      entityType: 'Account',
+      entityId: accountId,
+      reason,
+      metadata: { type, value },
+    });
+    return this.getById(accountId);
+  }
+
+  /** Cancela a conta inteira (RB-030/031). Itens → CANCELED; número liberado (status ≠ OPEN). */
+  async cancelAccount(accountId: string, reason: string, userId: string): Promise<AccountDto> {
+    await this.prisma.$transaction(async (tx) => {
+      const account = await tx.account.findUnique({ where: { id: accountId } });
+      if (!account) throw new NotFoundException('Conta não encontrada.');
+      if (account.status !== 'OPEN') throw new ConflictException('A conta não está aberta.');
+
+      await tx.accountItem.updateMany({
+        where: { accountId, NOT: { kdsStatus: 'CANCELED' } },
+        data: { kdsStatus: 'CANCELED', canceledReason: reason },
+      });
+      await tx.account.update({
+        where: { id: accountId },
+        data: { status: 'CANCELED', closedAt: new Date() },
+      });
+    });
+
+    await this.audit.log('ACCOUNT_CANCEL', {
+      userId,
+      entityType: 'Account',
+      entityId: accountId,
+      reason,
     });
     return this.getById(accountId);
   }

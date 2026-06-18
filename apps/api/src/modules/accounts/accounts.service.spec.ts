@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { ConflictException } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client';
+import { DiscountType } from '@teu-jardim/shared';
 import { AccountsService } from './accounts.service';
 
 const sessionRow = { id: 's1', status: 'OPEN' };
@@ -65,5 +66,63 @@ describe('AccountsService.openAccount', () => {
     await expect(service.openAccount('COMANDA' as any, 25, 'u1')).rejects.toBeInstanceOf(
       ConflictException,
     );
+  });
+});
+
+describe('AccountsService.applyDiscount', () => {
+  it('aplica PERCENT, grava Discount, recalcula total e audita (RB-026/027/028/043)', async () => {
+    const account = { id: 'a1', status: 'OPEN', subtotal: new Prisma.Decimal('42.65'), discountTotal: new Prisma.Decimal('0') };
+    const tx = {
+      account: {
+        findUnique: vi.fn().mockResolvedValue(account),
+        update: vi.fn().mockResolvedValue({}),
+      },
+      discount: { create: vi.fn().mockResolvedValue({}) },
+    };
+    const prisma = { $transaction: vi.fn(async (cb: any) => cb(tx)), account: { findUnique: vi.fn().mockResolvedValue({ ...account, openedAt: new Date(), tabType: 'COMANDA', number: 25, total: new Prisma.Decimal('38.38'), items: [] }) } } as any;
+    const audit = { log: vi.fn().mockResolvedValue(undefined) } as any;
+    const sessions = {} as any;
+    const service = new AccountsService(prisma, audit, sessions);
+
+    await service.applyDiscount('a1', 'PERCENT' as any, '10', 'u1');
+
+    expect(tx.account.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'a1' }, data: expect.objectContaining({ discountTotal: expect.anything(), total: expect.anything() }) }),
+    );
+    const updateArg = tx.account.update.mock.calls[0][0];
+    expect(updateArg.data.discountTotal.toFixed(2)).toBe('4.27');
+    expect(updateArg.data.total.toFixed(2)).toBe('38.38');
+    expect(audit.log).toHaveBeenCalledWith('DISCOUNT_APPLIED', expect.objectContaining({ userId: 'u1', entityType: 'Account', entityId: 'a1' }));
+  });
+
+  it('rejeita desconto em conta não OPEN (409)', async () => {
+    const tx = { account: { findUnique: vi.fn().mockResolvedValue({ id: 'a1', status: 'PAID' }) } };
+    const prisma = { $transaction: vi.fn(async (cb: any) => cb(tx)) } as any;
+    const service = new AccountsService(prisma, { log: vi.fn() } as any, {} as any);
+    await expect(service.applyDiscount('a1', 'FIXED' as any, '5', 'u1')).rejects.toBeInstanceOf(ConflictException);
+  });
+});
+
+describe('AccountsService.cancelAccount', () => {
+  it('cancela a conta + itens, audita com motivo, libera o número (RB-030/031)', async () => {
+    const tx = {
+      account: { findUnique: vi.fn().mockResolvedValue({ id: 'a1', status: 'OPEN' }), update: vi.fn().mockResolvedValue({}) },
+      accountItem: { updateMany: vi.fn().mockResolvedValue({}) },
+    };
+    const prisma = { $transaction: vi.fn(async (cb: any) => cb(tx)), account: { findUnique: vi.fn().mockResolvedValue({ id: 'a1', status: 'CANCELED', openedAt: new Date(), tabType: 'COMANDA', number: 25, subtotal: new Prisma.Decimal('0'), discountTotal: new Prisma.Decimal('0'), total: new Prisma.Decimal('0'), items: [] }) } } as any;
+    const audit = { log: vi.fn().mockResolvedValue(undefined) } as any;
+    const service = new AccountsService(prisma, audit, {} as any);
+
+    await service.cancelAccount('a1', 'cliente desistiu', 'u1');
+
+    expect(tx.account.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'a1' }, data: expect.objectContaining({ status: 'CANCELED' }) }));
+    expect(audit.log).toHaveBeenCalledWith('ACCOUNT_CANCEL', expect.objectContaining({ userId: 'u1', entityType: 'Account', entityId: 'a1', reason: 'cliente desistiu' }));
+  });
+
+  it('rejeita cancelar conta não OPEN (409)', async () => {
+    const tx = { account: { findUnique: vi.fn().mockResolvedValue({ id: 'a1', status: 'PAID' }) } };
+    const prisma = { $transaction: vi.fn(async (cb: any) => cb(tx)) } as any;
+    const service = new AccountsService(prisma, { log: vi.fn() } as any, {} as any);
+    await expect(service.cancelAccount('a1', 'x', 'u1')).rejects.toBeInstanceOf(ConflictException);
   });
 });
