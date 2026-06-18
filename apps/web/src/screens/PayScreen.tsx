@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { Navigate, useParams, useNavigate } from 'react-router-dom';
 import type { AccountDto } from '@teu-jardim/shared';
-import { PaymentMethod } from '@teu-jardim/shared';
+import { PaymentMethod, Role } from '@teu-jardim/shared';
+import { useAuth } from '../auth/AuthContext';
 import { accountsApi } from '../accounts/accounts-api';
 import { paymentsApi } from '../payments/payments-api';
 import { remaining, isExactlyPaid, toTenderRequest } from '../payments/tenders';
@@ -18,6 +19,7 @@ import { ApiError } from '../lib/api';
 export function PayScreen(): React.JSX.Element {
   const { id = '' } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [account, setAccount] = useState<AccountDto | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -42,6 +44,12 @@ export function PayScreen(): React.JSX.Element {
       alive = false;
     };
   }, [id]);
+
+  // Pagar é do caixa (RB-041). Defense-in-depth no front: garçom que digitar a URL
+  // direto volta ao início (o back já rejeita o POST /payments com 403).
+  if (user && user.role !== Role.CASHIER && user.role !== Role.ADMIN) {
+    return <Navigate to="/" replace />;
+  }
 
   function setRowMethod(idx: number, method: PaymentMethod): void {
     setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, method } : r)));

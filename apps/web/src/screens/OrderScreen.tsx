@@ -1205,7 +1205,7 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: 'var(--tj-font-ui)',
     fontSize: '15px',
     fontWeight: 600,
-    color: '#fff',
+    color: 'var(--tj-cta-contrast)',
     background: 'var(--tj-danger-text)',
     border: 'none',
     borderRadius: 'var(--tj-radius-pill)',
