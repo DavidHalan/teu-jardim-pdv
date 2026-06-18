@@ -97,12 +97,7 @@ export function Home(): React.JSX.Element {
               onSubmit={openRegister}
             />
           ) : (
-            <WaitingCard
-              title="Operação aberta"
-              message={`A operação "${session.name}" está aberta. Aguardando o caixa concluir a abertura.`}
-              onRefresh={() => void refresh()}
-              disabled={submitting}
-            />
+            <EmployeeLaunch sessionName={session.name} />
           )
         ) : (
           <Dashboard session={session} register={register} />
@@ -346,6 +341,24 @@ function Dashboard({
         Lançar pedido
       </button>
     </section>
+  );
+}
+
+function EmployeeLaunch({ sessionName }: { sessionName: string }): React.JSX.Element {
+  const navigate = useNavigate();
+  return (
+    <Centered>
+      <section style={styles.card}>
+        <StatusPill label="Operação aberta" />
+        <h1 style={{ ...styles.cardTitle, marginTop: 'var(--tj-space-3)' }}>Pronto para lançar</h1>
+        <p style={styles.cardHelp}>
+          A operação "{sessionName}" está aberta. Informe a conta e comece o pedido.
+        </p>
+        <button type="button" onClick={() => navigate('/lancar')} style={styles.cta} className="tj-press">
+          Lançar pedido
+        </button>
+      </section>
+    </Centered>
   );
 }
 
