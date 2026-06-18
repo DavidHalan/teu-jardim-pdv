@@ -2,6 +2,7 @@ import { api } from '../lib/api';
 import type {
   BusinessSessionDto, RegisterDto, OpenSessionRequest, OpenRegisterRequest,
   CurrentSessionResponse, CurrentRegisterResponse,
+  RegisterCloseSummary, CloseRegisterRequest, RegisterClosedDto,
 } from '@teu-jardim/shared';
 
 export const shiftApi = {
@@ -10,4 +11,8 @@ export const shiftApi = {
     api.post('/business-sessions', body),
   currentRegister: (): Promise<CurrentRegisterResponse> => api.get('/registers/current'),
   openRegister: (body: OpenRegisterRequest): Promise<RegisterDto> => api.post('/registers', body),
+  closingSummary: (): Promise<RegisterCloseSummary> => api.get('/registers/current/closing-summary'),
+  closeRegister: (body: CloseRegisterRequest): Promise<RegisterClosedDto> =>
+    api.post('/registers/current/close', body),
+  closeSession: (): Promise<BusinessSessionDto> => api.post('/business-sessions/current/close', {}),
 };
