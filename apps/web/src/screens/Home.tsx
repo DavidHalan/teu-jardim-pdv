@@ -1,5 +1,6 @@
 import { useId, useMemo, useState } from 'react';
 import type { CSSProperties, FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Role } from '@teu-jardim/shared';
 import { useAuth } from '../auth/AuthContext';
 import { useShift } from '../shift/useShift';
@@ -314,6 +315,7 @@ function Dashboard({
   session: { name: string; openedAt: string };
   register: { openingAmount: string; openedAt: string };
 }): React.JSX.Element {
+  const navigate = useNavigate();
   return (
     <section style={styles.dashboard} aria-label="Turno em andamento">
       <div style={styles.dashHead}>
@@ -335,7 +337,14 @@ function Dashboard({
         </div>
       </div>
 
-      <p style={styles.footnote}>Lançar pedido entra na próxima fatia (S3).</p>
+      <button
+        type="button"
+        onClick={() => navigate('/lancar')}
+        style={styles.cta}
+        className="tj-press"
+      >
+        Lançar pedido
+      </button>
     </section>
   );
 }
@@ -625,7 +634,6 @@ const styles: Record<string, CSSProperties> = {
     color: 'var(--tj-ink)',
   },
   infoMeta: { margin: 0, fontSize: '13px', color: 'var(--tj-muted)' },
-  footnote: { margin: 0, fontSize: '13px', color: 'var(--tj-faint)' },
 };
 
 // Pseudo-estados que estilo inline não cobre: foco visível (ring oliva), placeholder,
