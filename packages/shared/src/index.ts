@@ -242,3 +242,81 @@ export interface PlaceItemInput {
 export interface PlaceItemsRequest {
   items: PlaceItemInput[];
 }
+
+/* ---------------------------------------------------------------------------
+ * Pagamento / Desconto / Cancelamento / Fechamento (RB-007/011/012/026..039) — S4
+ * ------------------------------------------------------------------------- */
+
+/** Status da liquidação (RB-037..039). */
+export enum PaymentStatus {
+  PENDING = 'PENDING',
+  SETTLED = 'SETTLED',
+  CANCELED = 'CANCELED',
+}
+
+/** Aplica desconto na conta (RB-026/027). PERCENT: `value` em % (ex.: "10"); FIXED: R$ (ex.: "5.00"). */
+export interface ApplyDiscountRequest {
+  type: DiscountType; // PERCENT | FIXED
+  value: string; // string decimal canônica
+  reason?: string;
+}
+
+/** Cancela a conta inteira (RB-030). Motivo obrigatório (auditoria RB-031). */
+export interface CancelAccountRequest {
+  reason: string;
+}
+
+/** Uma forma de pagamento da venda (RB-037). `amount` = string decimal canônica. */
+export interface PaymentTenderInput {
+  method: PaymentMethod; // CASH | PIX | CREDIT | DEBIT
+  amount: string;
+}
+
+/** Liquida 1+ contas (grupo). MVP S4 paga 1; `accountIds` aceita N p/ agrupamento futuro (RB-035). */
+export interface PayRequest {
+  accountIds: string[];
+  tenders: PaymentTenderInput[];
+}
+
+/** Forma de pagamento registrada na liquidação. */
+export interface PaymentTenderDto {
+  method: PaymentMethod;
+  amount: string;
+}
+
+/** Liquidação concluída (RB-037/038). */
+export interface PaymentDto {
+  id: string;
+  accountGroupId: string;
+  registerId: string;
+  total: string;
+  status: PaymentStatus; // SETTLED no fluxo S4
+  tenders: PaymentTenderDto[];
+  accountIds: string[];
+  createdAt: string; // ISO 8601
+}
+
+/** GET /registers/current/closing-summary — prévia do fechamento (RB-011). */
+export interface RegisterCloseSummary {
+  registerId: string;
+  openingAmount: string;
+  cashReceipts: string; // Σ recebimentos em dinheiro (SALE_RECEIPT)
+  expectedAmount: string; // abertura + recebimentos em dinheiro
+  openAccountCount: number; // >0 bloqueia o fechamento (RB-012/012a)
+}
+
+/** Fecha o caixa: operador informa o valor contado (RB-011). */
+export interface CloseRegisterRequest {
+  countedAmount: string;
+}
+
+/** Resultado do fechamento (RB-011). */
+export interface RegisterClosedDto {
+  id: string;
+  status: OpenClosedStatus; // CLOSED
+  openingAmount: string;
+  expectedAmount: string;
+  countedAmount: string;
+  difference: string; // contado − esperado (pode ser negativo)
+  closedAt: string; // ISO 8601
+}
