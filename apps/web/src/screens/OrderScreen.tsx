@@ -95,7 +95,7 @@ export function OrderScreen(): React.JSX.Element {
     accountsApi
       .applyDiscount(id, {
         type: discountType,
-        value: discountValue.trim(),
+        value: normalizeAmount(discountValue),
         reason: discountReason.trim() || undefined,
       })
       .then((updated) => {
@@ -707,6 +707,13 @@ const OFFLINE = 'Sem conexão com o servidor. Verifique a rede e tente de novo.'
 
 function accountLabel(a: AccountDto): string {
   return `${TAB_LABEL[a.tabType] ?? a.tabType} ${a.number}`;
+}
+
+/** "5,00" (pt-BR) ou "5.00" → string decimal canônica com ponto (RB-047). */
+function normalizeAmount(raw: string): string {
+  const t = raw.trim();
+  if (t.includes(',')) return t.replace(/\./g, '').replace(',', '.');
+  return t;
 }
 
 function messageFor(err: ApiError): string {
