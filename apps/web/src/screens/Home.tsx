@@ -1,7 +1,8 @@
-import { useId, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import type { CSSProperties, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Role } from '@teu-jardim/shared';
+import type { RegisterCloseSummary, RegisterClosedDto } from '@teu-jardim/shared';
 import { useAuth } from '../auth/AuthContext';
 import { useShift } from '../shift/useShift';
 import { shiftApi } from '../shift/shift-api';
@@ -100,7 +101,7 @@ export function Home(): React.JSX.Element {
             <EmployeeLaunch sessionName={session.name} />
           )
         ) : (
-          <Dashboard session={session} register={register} />
+          <Dashboard session={session} register={register} refresh={refresh} />
         )}
       </main>
     </div>
@@ -306,11 +307,16 @@ function WaitingCard({
 function Dashboard({
   session,
   register,
+  refresh,
 }: {
   session: { name: string; openedAt: string };
   register: { openingAmount: string; openedAt: string };
+  refresh: () => Promise<void>;
 }): React.JSX.Element {
   const navigate = useNavigate();
+  // Só um painel de fechamento aberto por vez. Caixa e operação fecham daqui (RB-011/007).
+  const [panel, setPanel] = useState<'none' | 'register' | 'operation'>('none');
+
   return (
     <section style={styles.dashboard} aria-label="Turno em andamento">
       <div style={styles.dashHead}>
@@ -340,7 +346,287 @@ function Dashboard({
       >
         Lançar pedido
       </button>
+
+      <div style={styles.closeActions}>
+        <button
+          type="button"
+          onClick={() => setPanel((p) => (p === 'register' ? 'none' : 'register'))}
+          style={styles.ghostButtonWide}
+          className="tj-press"
+          aria-expanded={panel === 'register'}
+        >
+          Fechar caixa
+        </button>
+        <button
+          type="button"
+          onClick={() => setPanel((p) => (p === 'operation' ? 'none' : 'operation'))}
+          style={styles.ghostButtonWide}
+          className="tj-press"
+          aria-expanded={panel === 'operation'}
+        >
+          Encerrar operação
+        </button>
+      </div>
+
+      {panel === 'register' ? (
+        <CloseRegisterPanel refresh={refresh} onDone={() => setPanel('none')} />
+      ) : null}
+      {panel === 'operation' ? (
+        <EndOperationPanel refresh={refresh} onCancel={() => setPanel('none')} />
+      ) : null}
     </section>
+  );
+}
+
+/** Fecha o caixa (RB-011/012/012a): prévia → contagem → diferença. */
+function CloseRegisterPanel({
+  refresh,
+  onDone,
+}: {
+  refresh: () => Promise<void>;
+  onDone: () => void;
+}): React.JSX.Element {
+  const id = useId();
+  const [summary, setSummary] = useState<RegisterCloseSummary | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [counted, setCounted] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [closed, setClosed] = useState<RegisterClosedDto | null>(null);
+  const [ending, setEnding] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    shiftApi
+      .closingSummary()
+      .then((s) => {
+        if (alive) setSummary(s);
+      })
+      .catch((err) => {
+        if (alive) setLoadError(err instanceof ApiError ? err.message : OFFLINE);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  function confirmClose(event: FormEvent<HTMLFormElement>): void {
+    event.preventDefault();
+    if (submitting || !summary || summary.openAccountCount > 0) return;
+    setError(null);
+    setSubmitting(true);
+    shiftApi
+      .closeRegister({ countedAmount: normalizeAmount(counted) })
+      .then((r) => setClosed(r))
+      .catch((err) => setError(err instanceof ApiError ? err.message : OFFLINE))
+      .finally(() => setSubmitting(false));
+  }
+
+  function endOperation(): void {
+    if (ending) return;
+    setError(null);
+    setEnding(true);
+    shiftApi
+      .closeSession()
+      .then(() => refresh()) // operação encerrada → Home volta a "sem operação"
+      .catch((err) => {
+        setError(err instanceof ApiError ? err.message : OFFLINE);
+        setEnding(false);
+      });
+  }
+
+  // Caixa fechado → mostra diferença e oferece encerrar a operação.
+  if (closed) {
+    const diff = Number(closed.difference);
+    const diffStyle = diff < 0 ? styles.diffNeg : styles.diffPos;
+    return (
+      <section style={styles.card} aria-labelledby={`${id}-done`}>
+        <StatusPill label="Caixa fechado" />
+        <h2 id={`${id}-done`} style={{ ...styles.cardTitle, marginTop: 'var(--tj-space-3)' }}>
+          Fechamento concluído
+        </h2>
+        <dl style={styles.summaryGrid}>
+          <SummaryRow label="Esperado" value={formatBRL(closed.expectedAmount)} />
+          <SummaryRow label="Contado" value={formatBRL(closed.countedAmount)} />
+          <div style={styles.summaryItem}>
+            <dt style={styles.infoLabel}>Diferença</dt>
+            <dd style={{ ...styles.summaryValueNum, ...diffStyle }}>{formatBRL(closed.difference)}</dd>
+          </div>
+        </dl>
+        {error ? (
+          <p role="alert" style={styles.error}>
+            {error}
+          </p>
+        ) : null}
+        <div style={styles.closeActions}>
+          <button
+            type="button"
+            onClick={endOperation}
+            disabled={ending}
+            style={{ ...styles.cta, ...(ending ? styles.ctaBusy : null) }}
+            className="tj-press"
+          >
+            {ending ? 'Encerrando…' : 'Encerrar operação'}
+          </button>
+          <button
+            type="button"
+            onClick={() => void refresh().then(onDone)}
+            disabled={ending}
+            style={styles.ghostButtonWide}
+            className="tj-press"
+          >
+            Manter operação aberta
+          </button>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section style={styles.card} aria-labelledby={`${id}-t`}>
+      <h2 id={`${id}-t`} style={styles.cardTitle}>
+        Fechar caixa
+      </h2>
+      {loadError ? (
+        <p role="alert" style={styles.error}>
+          {loadError}
+        </p>
+      ) : !summary ? (
+        <p style={styles.cardHelp} aria-live="polite">
+          Calculando o esperado…
+        </p>
+      ) : (
+        <>
+          <dl style={styles.summaryGrid}>
+            <SummaryRow label="Abertura" value={formatBRL(summary.openingAmount)} />
+            <SummaryRow label="Recebido em dinheiro" value={formatBRL(summary.cashReceipts)} />
+            <div style={styles.summaryItem}>
+              <dt style={styles.infoLabel}>Esperado na gaveta</dt>
+              <dd style={styles.summaryValueNum}>{formatBRL(summary.expectedAmount)}</dd>
+            </div>
+          </dl>
+
+          {summary.openAccountCount > 0 ? (
+            <p role="alert" style={styles.warn}>
+              Há {summary.openAccountCount} conta(s) aberta(s) na operação. Pague ou cancele antes de
+              fechar o caixa.
+            </p>
+          ) : (
+            <form style={styles.form} onSubmit={confirmClose} noValidate>
+              <div style={styles.field}>
+                <label htmlFor={`${id}-counted`} style={styles.label}>
+                  Valor contado na gaveta
+                </label>
+                <div style={styles.amountWrap}>
+                  <span aria-hidden="true" style={styles.amountPrefix}>
+                    R$
+                  </span>
+                  <input
+                    id={`${id}-counted`}
+                    type="text"
+                    inputMode="decimal"
+                    value={counted}
+                    onChange={(e) => setCounted(e.target.value)}
+                    autoFocus
+                    placeholder="0,00"
+                    disabled={submitting}
+                    style={{ ...styles.input, ...styles.amountInput }}
+                    className="tj-input"
+                  />
+                </div>
+              </div>
+              {error ? (
+                <p role="alert" style={styles.error}>
+                  {error}
+                </p>
+              ) : null}
+              <button
+                type="submit"
+                disabled={submitting || counted.trim() === ''}
+                style={{
+                  ...styles.cta,
+                  ...(submitting || counted.trim() === '' ? styles.ctaBusy : null),
+                }}
+                className="tj-press"
+              >
+                {submitting ? 'Fechando…' : 'Confirmar fechamento'}
+              </button>
+            </form>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+/** Encerra a operação (RB-007/007b). Confirma; 409 se houver caixa/conta aberta. */
+function EndOperationPanel({
+  refresh,
+  onCancel,
+}: {
+  refresh: () => Promise<void>;
+  onCancel: () => void;
+}): React.JSX.Element {
+  const id = useId();
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function confirm(): void {
+    if (submitting) return;
+    setError(null);
+    setSubmitting(true);
+    shiftApi
+      .closeSession()
+      .then(() => refresh()) // sucesso → Home volta a "sem operação"
+      .catch((err) => {
+        setError(err instanceof ApiError ? err.message : OFFLINE);
+        setSubmitting(false);
+      });
+  }
+
+  return (
+    <section style={styles.card} aria-labelledby={`${id}-t`}>
+      <h2 id={`${id}-t`} style={styles.cardTitle}>
+        Encerrar operação
+      </h2>
+      <p style={styles.cardHelp}>
+        Encerra o período operacional. Exige todos os caixas fechados e nenhuma conta aberta.
+      </p>
+      {error ? (
+        <p role="alert" style={styles.error}>
+          {error}
+        </p>
+      ) : null}
+      <div style={styles.closeActions}>
+        <button
+          type="button"
+          onClick={confirm}
+          disabled={submitting}
+          style={{ ...styles.ctaDanger, ...(submitting ? styles.ctaBusy : null) }}
+          className="tj-press"
+        >
+          {submitting ? 'Encerrando…' : 'Encerrar operação'}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={submitting}
+          style={styles.ghostButtonWide}
+          className="tj-press"
+        >
+          Cancelar
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }): React.JSX.Element {
+  return (
+    <div style={styles.summaryItem}>
+      <dt style={styles.infoLabel}>{label}</dt>
+      <dd style={styles.summaryValueNum}>{value}</dd>
+    </div>
   );
 }
 
@@ -647,6 +933,51 @@ const styles: Record<string, CSSProperties> = {
     color: 'var(--tj-ink)',
   },
   infoMeta: { margin: 0, fontSize: '13px', color: 'var(--tj-muted)' },
+
+  closeActions: { display: 'grid', gap: 'var(--tj-space-2)', marginTop: 'var(--tj-space-2)' },
+  summaryGrid: {
+    margin: '0 0 var(--tj-space-3)',
+    display: 'grid',
+    gap: 'var(--tj-space-2)',
+  },
+  summaryItem: {
+    display: 'flex',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: 'var(--tj-space-3)',
+  },
+  summaryValueNum: {
+    margin: 0,
+    fontSize: '18px',
+    fontWeight: 700,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--tj-ink)',
+  },
+  diffPos: { color: 'var(--tj-olive)' },
+  diffNeg: { color: 'var(--tj-danger-text)' },
+  warn: {
+    margin: 'var(--tj-space-1) 0 0',
+    padding: 'var(--tj-space-2) var(--tj-space-3)',
+    fontSize: '14px',
+    fontWeight: 500,
+    lineHeight: 1.45,
+    color: 'var(--tj-danger-text)',
+    background: 'var(--tj-danger-pale)',
+    borderRadius: 'var(--tj-radius-input)',
+  },
+  ctaDanger: {
+    minHeight: '48px',
+    padding: '0 var(--tj-space-4)',
+    fontFamily: 'var(--tj-font-ui)',
+    fontSize: '16px',
+    fontWeight: 600,
+    color: 'var(--tj-cta-contrast)',
+    background: 'var(--tj-danger-text)',
+    border: 'none',
+    borderRadius: 'var(--tj-radius-pill)',
+    cursor: 'pointer',
+    transition: 'transform 80ms ease, opacity 120ms ease',
+  },
 };
 
 // Pseudo-estados que estilo inline não cobre: foco visível (ring oliva), placeholder,
