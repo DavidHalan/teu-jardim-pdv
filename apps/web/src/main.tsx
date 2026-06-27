@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthContext';
 import { App } from './App';
 import './styles/tokens.css';
+import './styles/base.css';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error('Elemento #root não encontrado');

@@ -1,0 +1,87 @@
+/*
+ * Base global — Teu Jardim PDV.
+ * Reset enxuto + defaults de documento + camada interativa compartilhada
+ * (foco visível, placeholder, press de botão, hover de card, reduced-motion).
+ * Estas classes (.tj-input / .tj-press / .tj-card) eram duplicadas no `scopedCss`
+ * de cada tela; agora vivem aqui uma única vez. As telas dropam o seu no polish.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--tj-canvas);
+  color: var(--tj-ink);
+  font-family: var(--tj-font-ui);
+  font-size: var(--tj-fs-body);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4, p, dl, dd, figure {
+  margin: 0;
+}
+
+button {
+  font-family: inherit;
+}
+
+/* números monetários e de comanda alinham por padrão onde aplicado */
+.tj-tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Camada interativa compartilhada ──────────────────────────────────────── */
+
+.tj-input {
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.tj-input:focus-visible {
+  border-color: var(--tj-brand);
+  box-shadow: 0 0 0 3px var(--tj-brand-pale);
+}
+.tj-input::placeholder {
+  color: var(--tj-faint);
+}
+
+.tj-press {
+  transition: transform 80ms ease, background 120ms ease, border-color 120ms ease, opacity 120ms ease;
+}
+.tj-press:focus-visible {
+  outline: 3px solid var(--tj-brand-pale);
+  outline-offset: 2px;
+}
+.tj-press:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+.tj-card {
+  transition: transform 80ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+.tj-card:not(:disabled):hover {
+  border-color: var(--tj-hairline-strong);
+  box-shadow: var(--tj-shadow-hover);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tj-input,
+  .tj-press,
+  .tj-card {
+    transition: none;
+  }
+  .tj-press:not(:disabled):active {
+    transform: none;
+  }
+}

@@ -6,6 +6,7 @@ import type { AccountSummaryDto } from '@teu-jardim/shared';
 import { accountsApi } from '../accounts/accounts-api';
 import { formatBRL } from '../lib/money';
 import { ApiError } from '../lib/api';
+import { Alert, Button, ComandaTile, ScreenHeader, Segmented, TextField } from '../shared/ui';
 
 /**
  * Passo 1 do lançamento (PRD §12, RB-018): "informar conta". O garçom escolhe uma
@@ -57,49 +58,37 @@ export function NewOrder(): React.JSX.Element {
 
   return (
     <div style={styles.page}>
-      <style>{scopedCss}</style>
-
-      <header style={styles.topbar}>
-        <button
-          type="button"
-          onClick={() => navigate('/')}
-          style={styles.backButton}
-          className="tj-press"
-          aria-label="Voltar ao início"
-        >
-          <span aria-hidden="true" style={styles.backArrow}>
-            ←
-          </span>
-          Início
-        </button>
-        <span style={styles.eyebrow}>Lançar pedido</span>
-      </header>
+      <ScreenHeader onBack={() => navigate('/')} backLabel="Início" eyebrow="Lançar pedido" />
 
       <main style={styles.main}>
         <h1 style={styles.title}>Informe a conta</h1>
         <p style={styles.help}>Escolha uma conta aberta ou abra uma nova para começar.</p>
 
-        {!loadingList && accounts.length > 0 ? (
+        {loadingList ? (
+          <section style={styles.section} aria-hidden="true">
+            <h2 style={styles.sectionTitle}>Contas abertas</h2>
+            <div style={styles.grid}>
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} style={styles.skelTile} />
+              ))}
+            </div>
+          </section>
+        ) : accounts.length > 0 ? (
           <section style={styles.section} aria-labelledby={`${id}-open`}>
             <h2 id={`${id}-open`} style={styles.sectionTitle}>
               Contas abertas
             </h2>
             <div style={styles.grid}>
               {accounts.map((acc) => (
-                <button
+                <ComandaTile
                   key={acc.id}
-                  type="button"
+                  kind={TAB_LABEL[acc.tabType]}
+                  number={acc.number}
+                  total={formatBRL(acc.total)}
+                  meta={itemCountLabel(acc.itemCount)}
+                  inUse
                   onClick={() => navigate(`/conta/${acc.id}`)}
-                  style={styles.accountCard}
-                  className="tj-press tj-card"
-                >
-                  <span style={styles.accountKind}>{TAB_LABEL[acc.tabType]}</span>
-                  <span style={styles.accountNumber}>{acc.number}</span>
-                  <span style={styles.accountMeta}>
-                    <span style={styles.accountTotal}>{formatBRL(acc.total)}</span>
-                    <span style={styles.accountCount}>{itemCountLabel(acc.itemCount)}</span>
-                  </span>
-                </button>
+                />
               ))}
             </div>
           </section>
@@ -114,62 +103,36 @@ export function NewOrder(): React.JSX.Element {
               <span style={styles.label} id={`${id}-tab`}>
                 Tipo
               </span>
-              <div style={styles.segmented} role="radiogroup" aria-labelledby={`${id}-tab`}>
-                {TAB_ORDER.map((t) => {
-                  const selected = t === tabType;
-                  return (
-                    <button
-                      key={t}
-                      type="button"
-                      role="radio"
-                      aria-checked={selected}
-                      onClick={() => setTabType(t)}
-                      style={{ ...styles.segment, ...(selected ? styles.segmentOn : null) }}
-                      className="tj-press"
-                    >
-                      {TAB_LABEL[t]}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div style={styles.field}>
-              <label htmlFor={`${id}-num`} style={styles.label}>
-                Número
-              </label>
-              <input
-                id={`${id}-num`}
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                value={number}
-                onChange={(e) => setNumber(e.target.value.replace(/\D/g, ''))}
-                autoFocus
-                placeholder="Ex.: 25"
-                maxLength={6}
-                disabled={submitting}
-                aria-invalid={hasError}
-                aria-describedby={hasError ? `${id}-err` : undefined}
-                style={styles.input}
-                className="tj-input"
+              <Segmented
+                ariaLabel="Tipo de conta"
+                options={TAB_ORDER.map((t) => ({ value: t, label: TAB_LABEL[t] }))}
+                value={tabType}
+                onChange={setTabType}
               />
             </div>
 
-            {hasError ? (
-              <p id={`${id}-err`} role="alert" style={styles.error}>
-                {error}
-              </p>
-            ) : null}
+            <TextField
+              label="Número"
+              id={`${id}-num`}
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={number}
+              onChange={(e) => setNumber(e.target.value.replace(/\D/g, ''))}
+              autoFocus
+              placeholder="Ex.: 25"
+              maxLength={6}
+              disabled={submitting}
+              aria-invalid={hasError}
+              aria-describedby={hasError ? `${id}-err` : undefined}
+              style={{ fontVariantNumeric: 'tabular-nums' }}
+            />
 
-            <button
-              type="submit"
-              disabled={!canOpen}
-              style={{ ...styles.cta, ...(canOpen ? null : styles.ctaDisabled) }}
-              className="tj-press"
-            >
+            {hasError ? <Alert id={`${id}-err`}>{error}</Alert> : null}
+
+            <Button type="submit" busy={submitting} disabled={!canOpen && !submitting} fullWidth>
               {submitting ? 'Abrindo…' : 'Abrir e lançar'}
-            </button>
+            </Button>
           </form>
         </section>
       </main>
@@ -200,47 +163,13 @@ function itemCountLabel(n: number): string {
   return n === 1 ? '1 item' : `${n} itens`;
 }
 
-/* ── Estilos ─────────────────────────────────────────────────────────────── */
+/* ── Estilos (layout) ──────────────────────────────────────────────────────── */
 
 const styles: Record<string, CSSProperties> = {
   page: {
     minHeight: '100vh',
-    background: 'var(--tj-cream)',
-    fontFamily: 'var(--tj-font-ui)',
+    background: 'var(--tj-canvas)',
     color: 'var(--tj-ink)',
-  },
-  topbar: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 'var(--tj-space-3)',
-    padding: 'var(--tj-space-2) var(--tj-space-4)',
-    background: 'var(--tj-surface)',
-    borderBottom: '1px solid var(--tj-hairline)',
-  },
-  backButton: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 'var(--tj-space-2)',
-    minHeight: '44px',
-    padding: '0 var(--tj-space-3) 0 var(--tj-space-2)',
-    fontFamily: 'var(--tj-font-ui)',
-    fontSize: '15px',
-    fontWeight: 600,
-    color: 'var(--tj-body)',
-    background: 'transparent',
-    border: 'none',
-    borderRadius: 'var(--tj-radius-pill)',
-    cursor: 'pointer',
-    transition: 'transform 80ms ease, background 120ms ease',
-  },
-  backArrow: { fontSize: '18px', lineHeight: 1 },
-  eyebrow: {
-    fontSize: '11px',
-    fontWeight: 600,
-    letterSpacing: '0.1em',
-    textTransform: 'uppercase',
-    color: 'var(--tj-muted)',
   },
   main: {
     boxSizing: 'border-box',
@@ -253,11 +182,11 @@ const styles: Record<string, CSSProperties> = {
   },
   title: {
     margin: 0,
-    fontFamily: 'var(--tj-font-display)',
-    fontWeight: 600,
+    fontFamily: 'var(--tj-font-ui)',
+    fontWeight: 700,
     fontSize: '30px',
     lineHeight: 1.1,
-    letterSpacing: '-0.4px',
+    letterSpacing: '-0.6px',
     color: 'var(--tj-ink)',
   },
   help: {
@@ -281,133 +210,12 @@ const styles: Record<string, CSSProperties> = {
     gap: 'var(--tj-space-3)',
     gridTemplateColumns: 'repeat(auto-fill, minmax(132px, 1fr))',
   },
-  accountCard: {
-    display: 'grid',
-    gap: '2px',
-    justifyItems: 'start',
-    textAlign: 'left',
+  skelTile: {
     minHeight: '108px',
-    padding: 'var(--tj-space-3)',
-    background: 'var(--tj-surface)',
-    border: '1px solid var(--tj-hairline)',
-    borderRadius: 'var(--tj-radius)',
-    cursor: 'pointer',
-    transition: 'transform 80ms ease, border-color 120ms ease, box-shadow 120ms ease',
+    background: 'var(--tj-canvas-soft)',
+    borderRadius: 'var(--tj-radius-md)',
   },
-  accountKind: {
-    fontSize: '11px',
-    fontWeight: 600,
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase',
-    color: 'var(--tj-muted)',
-  },
-  accountNumber: {
-    fontFamily: 'var(--tj-font-display)',
-    fontWeight: 600,
-    fontSize: '34px',
-    lineHeight: 1.05,
-    color: 'var(--tj-ink)',
-    fontVariantNumeric: 'tabular-nums',
-  },
-  accountMeta: { display: 'grid', gap: '1px', marginTop: 'var(--tj-space-1)' },
-  accountTotal: {
-    fontSize: '15px',
-    fontWeight: 700,
-    color: 'var(--tj-body)',
-    fontVariantNumeric: 'tabular-nums',
-  },
-  accountCount: { fontSize: '12px', color: 'var(--tj-faint)' },
-
   form: { display: 'grid', gap: 'var(--tj-space-3)', maxWidth: '420px' },
   field: { display: 'grid', gap: 'var(--tj-space-2)' },
-  label: { fontSize: '14px', fontWeight: 500, color: 'var(--tj-body)' },
-  segmented: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(3, 1fr)',
-    gap: '6px',
-    padding: '4px',
-    background: 'var(--tj-canvas-soft)',
-    borderRadius: 'var(--tj-radius-input)',
-  },
-  segment: {
-    minHeight: '44px',
-    padding: '0 var(--tj-space-2)',
-    fontFamily: 'var(--tj-font-ui)',
-    fontSize: '15px',
-    fontWeight: 600,
-    color: 'var(--tj-muted)',
-    background: 'transparent',
-    border: '1px solid transparent',
-    borderRadius: 'var(--tj-radius-input)',
-    cursor: 'pointer',
-    transition: 'transform 80ms ease, background 120ms ease, color 120ms ease',
-  },
-  segmentOn: {
-    color: 'var(--tj-cta)',
-    background: 'var(--tj-surface)',
-    border: '1px solid var(--tj-olive)',
-    boxShadow: '0 1px 2px rgba(26, 27, 18, 0.06)',
-  },
-  input: {
-    boxSizing: 'border-box',
-    width: '100%',
-    minHeight: '46px',
-    padding: '0 var(--tj-space-3)',
-    fontFamily: 'var(--tj-font-ui)',
-    fontSize: '16px',
-    color: 'var(--tj-ink)',
-    background: 'var(--tj-surface)',
-    border: '1px solid var(--tj-hairline)',
-    borderRadius: 'var(--tj-radius-input)',
-    outline: 'none',
-    fontVariantNumeric: 'tabular-nums',
-    transition: 'border-color 120ms ease, box-shadow 120ms ease',
-  },
-  error: {
-    margin: 0,
-    padding: 'var(--tj-space-2) var(--tj-space-3)',
-    fontSize: '14px',
-    fontWeight: 500,
-    lineHeight: 1.45,
-    color: 'var(--tj-danger-text)',
-    background: 'var(--tj-danger-pale)',
-    borderRadius: 'var(--tj-radius-input)',
-  },
-  cta: {
-    marginTop: 'var(--tj-space-1)',
-    minHeight: '48px',
-    padding: '0 var(--tj-space-4)',
-    fontFamily: 'var(--tj-font-ui)',
-    fontSize: '16px',
-    fontWeight: 600,
-    color: 'var(--tj-cta-contrast)',
-    background: 'var(--tj-cta)',
-    border: 'none',
-    borderRadius: 'var(--tj-radius-pill)',
-    cursor: 'pointer',
-    transition: 'transform 80ms ease, opacity 120ms ease',
-  },
-  ctaDisabled: { opacity: 0.5, cursor: 'not-allowed' },
+  label: { fontSize: 'var(--tj-fs-body-sm)', fontWeight: 500, color: 'var(--tj-body)' },
 };
-
-// Pseudo-estados que estilo inline não cobre (mesma base do Login/Home).
-const scopedCss = `
-.tj-input:focus-visible {
-  border-color: var(--tj-olive);
-  box-shadow: 0 0 0 3px var(--tj-pale);
-}
-.tj-input::placeholder { color: var(--tj-faint); }
-.tj-press:focus-visible {
-  outline: 3px solid var(--tj-pale);
-  outline-offset: 2px;
-}
-.tj-press:not(:disabled):active { transform: scale(0.97); }
-.tj-card:not(:disabled):hover {
-  border-color: var(--tj-hairline-strong);
-  box-shadow: 0 2px 8px rgba(26, 27, 18, 0.08);
-}
-@media (prefers-reduced-motion: reduce) {
-  .tj-input, .tj-press, .tj-card { transition: none; }
-  .tj-press:not(:disabled):active { transform: none; }
-}
-`;

@@ -8,12 +8,13 @@ import { useShift } from '../shift/useShift';
 import { shiftApi } from '../shift/shift-api';
 import { formatBRL } from '../lib/money';
 import { ApiError } from '../lib/api';
+import { Alert, Button, Card, StatusPill, TextField } from '../shared/ui';
 
 /**
  * Tela operacional pós-login do PDV. Máquina de estado do turno: sem operação →
  * abrir operação; com operação sem caixa → abrir caixa; com ambos → dashboard.
  * Estado por vislumbre (cor + forma + texto), calma sob pressão, primeiro dia sem
- * treino. Reusa o sistema visual do Login (creme/oliva/Fraunces). Caixa/Admin abrem;
+ * treino. Reusa o sistema visual do Login (creme/oliva/Inter). Caixa/Admin abrem;
  * garçom aguarda. Lançar pedido entra na S3.
  */
 export function Home(): React.JSX.Element {
@@ -60,15 +61,13 @@ export function Home(): React.JSX.Element {
 
   return (
     <div style={styles.page}>
-      <style>{scopedCss}</style>
       <Topbar userName={user?.name ?? ''} role={user?.role} onLogout={logout} />
 
       <main style={styles.main}>
         {loading ? (
           <Centered>
-            <p style={styles.loading} aria-live="polite">
-              Carregando turno…
-            </p>
+            <ShiftSkeleton />
+            <StatusLive />
           </Centered>
         ) : !session ? (
           canOperate ? (
@@ -130,9 +129,9 @@ function Topbar({
           <span style={styles.userName}>{userName}</span>
           {role ? <span style={styles.roleChip}>{ROLE_LABEL[role]}</span> : null}
         </span>
-        <button type="button" onClick={onLogout} style={styles.ghostButton} className="tj-press">
+        <Button variant="secondary" onClick={onLogout} style={styles.compactBtn}>
           Sair
-        </button>
+        </Button>
       </div>
     </header>
   );
@@ -155,7 +154,7 @@ function OpenSessionForm({
   const hasError = error !== null;
   return (
     <Centered>
-      <section style={styles.card} aria-labelledby={`${id}-t`}>
+      <Card style={styles.card} aria-labelledby={`${id}-t`}>
         <p style={styles.cardEyebrow}>Turno</p>
         <h1 id={`${id}-t`} style={styles.cardTitle}>
           Abrir operação
@@ -164,39 +163,24 @@ function OpenSessionForm({
           Nenhuma operação aberta. Abra para começar o atendimento do dia.
         </p>
         <form style={styles.form} onSubmit={onSubmit} noValidate>
-          <div style={styles.field}>
-            <label htmlFor={`${id}-name`} style={styles.label}>
-              Nome da operação
-            </label>
-            <input
-              id={`${id}-name`}
-              type="text"
-              value={name}
-              onChange={(e) => onName(e.target.value)}
-              autoFocus
-              maxLength={80}
-              disabled={submitting}
-              aria-invalid={hasError}
-              aria-describedby={hasError ? `${id}-err` : undefined}
-              style={styles.input}
-              className="tj-input"
-            />
-          </div>
-          {hasError ? (
-            <p id={`${id}-err`} role="alert" style={styles.error}>
-              {error}
-            </p>
-          ) : null}
-          <button
-            type="submit"
+          <TextField
+            label="Nome da operação"
+            id={`${id}-name`}
+            type="text"
+            value={name}
+            onChange={(e) => onName(e.target.value)}
+            autoFocus
+            maxLength={80}
             disabled={submitting}
-            style={{ ...styles.cta, ...(submitting ? styles.ctaBusy : null) }}
-            className="tj-press"
-          >
+            aria-invalid={hasError}
+            aria-describedby={hasError ? `${id}-err` : undefined}
+          />
+          {hasError ? <Alert id={`${id}-err`}>{error}</Alert> : null}
+          <Button type="submit" busy={submitting} fullWidth>
             {submitting ? 'Abrindo…' : 'Abrir operação'}
-          </button>
+          </Button>
         </form>
-      </section>
+      </Card>
     </Centered>
   );
 }
@@ -220,7 +204,7 @@ function OpenRegisterForm({
   const hasError = error !== null;
   return (
     <Centered>
-      <section style={styles.card} aria-labelledby={`${id}-t`}>
+      <Card style={styles.card} aria-labelledby={`${id}-t`}>
         <div style={styles.cardStatus}>
           <StatusPill label="Operação aberta" />
           <span style={styles.cardStatusName}>{sessionName}</span>
@@ -230,45 +214,26 @@ function OpenRegisterForm({
         </h1>
         <p style={styles.cardHelp}>Informe o valor inicial em dinheiro na gaveta.</p>
         <form style={styles.form} onSubmit={onSubmit} noValidate>
-          <div style={styles.field}>
-            <label htmlFor={`${id}-amount`} style={styles.label}>
-              Valor inicial
-            </label>
-            <div style={styles.amountWrap}>
-              <span aria-hidden="true" style={styles.amountPrefix}>
-                R$
-              </span>
-              <input
-                id={`${id}-amount`}
-                type="text"
-                inputMode="decimal"
-                value={openingAmount}
-                onChange={(e) => onAmount(e.target.value)}
-                autoFocus
-                placeholder="0,00"
-                disabled={submitting}
-                aria-invalid={hasError}
-                aria-describedby={hasError ? `${id}-err` : undefined}
-                style={{ ...styles.input, ...styles.amountInput }}
-                className="tj-input"
-              />
-            </div>
-          </div>
-          {hasError ? (
-            <p id={`${id}-err`} role="alert" style={styles.error}>
-              {error}
-            </p>
-          ) : null}
-          <button
-            type="submit"
+          <TextField
+            label="Valor inicial"
+            id={`${id}-amount`}
+            type="text"
+            inputMode="decimal"
+            leading="R$"
+            value={openingAmount}
+            onChange={(e) => onAmount(e.target.value)}
+            autoFocus
+            placeholder="0,00"
             disabled={submitting}
-            style={{ ...styles.cta, ...(submitting ? styles.ctaBusy : null) }}
-            className="tj-press"
-          >
+            aria-invalid={hasError}
+            aria-describedby={hasError ? `${id}-err` : undefined}
+          />
+          {hasError ? <Alert id={`${id}-err`}>{error}</Alert> : null}
+          <Button type="submit" busy={submitting} fullWidth>
             {submitting ? 'Abrindo…' : 'Abrir caixa'}
-          </button>
+          </Button>
         </form>
-      </section>
+      </Card>
     </Centered>
   );
 }
@@ -286,20 +251,14 @@ function WaitingCard({
 }): React.JSX.Element {
   return (
     <Centered>
-      <section style={styles.card}>
-        <StatusPill label="Aguardando" tone="neutral" />
+      <Card style={styles.card}>
+        <StatusPill label="Aguardando" tone="pending" />
         <h1 style={{ ...styles.cardTitle, marginTop: 'var(--tj-space-3)' }}>{title}</h1>
         <p style={styles.cardHelp}>{message}</p>
-        <button
-          type="button"
-          onClick={onRefresh}
-          disabled={disabled}
-          style={styles.ghostButtonWide}
-          className="tj-press"
-        >
+        <Button variant="secondary" onClick={onRefresh} disabled={disabled} fullWidth>
           Atualizar
-        </button>
-      </section>
+        </Button>
+      </Card>
     </Centered>
   );
 }
@@ -333,39 +292,34 @@ function Dashboard({
         <div style={styles.panelDivider} aria-hidden="true" />
         <div style={styles.infoBlock}>
           <p style={styles.infoLabel}>Caixa</p>
-          <p style={styles.infoValueNum}>{formatBRL(register.openingAmount)}</p>
+          <p style={styles.infoValueNum} className="tj-tnum">
+            {formatBRL(register.openingAmount)}
+          </p>
           <p style={styles.infoMeta}>Valor inicial · aberto às {formatTime(register.openedAt)}</p>
         </div>
       </div>
 
-      <button
-        type="button"
-        onClick={() => navigate('/lancar')}
-        style={styles.cta}
-        className="tj-press"
-      >
+      <Button onClick={() => navigate('/lancar')} fullWidth>
         Lançar pedido
-      </button>
+      </Button>
 
       <div style={styles.closeActions}>
-        <button
-          type="button"
+        <Button
+          variant="secondary"
+          fullWidth
           onClick={() => setPanel((p) => (p === 'register' ? 'none' : 'register'))}
-          style={styles.ghostButtonWide}
-          className="tj-press"
           aria-expanded={panel === 'register'}
         >
           Fechar caixa
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          variant="secondary"
+          fullWidth
           onClick={() => setPanel((p) => (p === 'operation' ? 'none' : 'operation'))}
-          style={styles.ghostButtonWide}
-          className="tj-press"
           aria-expanded={panel === 'operation'}
         >
           Encerrar operação
-        </button>
+        </Button>
       </div>
 
       {panel === 'register' ? (
@@ -440,8 +394,8 @@ function CloseRegisterPanel({
     const diff = Number(closed.difference);
     const diffStyle = diff < 0 ? styles.diffNeg : styles.diffPos;
     return (
-      <section style={styles.card} aria-labelledby={`${id}-done`}>
-        <StatusPill label="Caixa fechado" />
+      <Card style={styles.card} aria-labelledby={`${id}-done`}>
+        <StatusPill label="Caixa fechado" tone="ready" />
         <h2 id={`${id}-done`} style={{ ...styles.cardTitle, marginTop: 'var(--tj-space-3)' }}>
           Fechamento concluído
         </h2>
@@ -450,47 +404,36 @@ function CloseRegisterPanel({
           <SummaryRow label="Contado" value={formatBRL(closed.countedAmount)} />
           <div style={styles.summaryItem}>
             <dt style={styles.infoLabel}>Diferença</dt>
-            <dd style={{ ...styles.summaryValueNum, ...diffStyle }}>{formatBRL(closed.difference)}</dd>
+            <dd style={{ ...styles.summaryValueNum, ...diffStyle }} className="tj-tnum">
+              {formatBRL(closed.difference)}
+            </dd>
           </div>
         </dl>
-        {error ? (
-          <p role="alert" style={styles.error}>
-            {error}
-          </p>
-        ) : null}
+        {error ? <Alert>{error}</Alert> : null}
         <div style={styles.closeActions}>
-          <button
-            type="button"
-            onClick={endOperation}
-            disabled={ending}
-            style={{ ...styles.cta, ...(ending ? styles.ctaBusy : null) }}
-            className="tj-press"
-          >
+          <Button onClick={endOperation} busy={ending} fullWidth>
             {ending ? 'Encerrando…' : 'Encerrar operação'}
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="secondary"
+            fullWidth
             onClick={() => void refresh().then(onDone)}
             disabled={ending}
-            style={styles.ghostButtonWide}
-            className="tj-press"
           >
             Manter operação aberta
-          </button>
+          </Button>
         </div>
-      </section>
+      </Card>
     );
   }
 
   return (
-    <section style={styles.card} aria-labelledby={`${id}-t`}>
+    <Card style={styles.card} aria-labelledby={`${id}-t`}>
       <h2 id={`${id}-t`} style={styles.cardTitle}>
         Fechar caixa
       </h2>
       {loadError ? (
-        <p role="alert" style={styles.error}>
-          {loadError}
-        </p>
+        <Alert>{loadError}</Alert>
       ) : !summary ? (
         <p style={styles.cardHelp} aria-live="polite">
           Calculando o esperado…
@@ -502,60 +445,45 @@ function CloseRegisterPanel({
             <SummaryRow label="Recebido em dinheiro" value={formatBRL(summary.cashReceipts)} />
             <div style={styles.summaryItem}>
               <dt style={styles.infoLabel}>Esperado na gaveta</dt>
-              <dd style={styles.summaryValueNum}>{formatBRL(summary.expectedAmount)}</dd>
+              <dd style={styles.summaryValueNum} className="tj-tnum">
+                {formatBRL(summary.expectedAmount)}
+              </dd>
             </div>
           </dl>
 
           {summary.openAccountCount > 0 ? (
-            <p role="alert" style={styles.warn}>
+            <Alert tone="warn">
               Há {summary.openAccountCount} conta(s) aberta(s) na operação. Pague ou cancele antes de
               fechar o caixa.
-            </p>
+            </Alert>
           ) : (
             <form style={styles.form} onSubmit={confirmClose} noValidate>
-              <div style={styles.field}>
-                <label htmlFor={`${id}-counted`} style={styles.label}>
-                  Valor contado na gaveta
-                </label>
-                <div style={styles.amountWrap}>
-                  <span aria-hidden="true" style={styles.amountPrefix}>
-                    R$
-                  </span>
-                  <input
-                    id={`${id}-counted`}
-                    type="text"
-                    inputMode="decimal"
-                    value={counted}
-                    onChange={(e) => setCounted(e.target.value)}
-                    autoFocus
-                    placeholder="0,00"
-                    disabled={submitting}
-                    style={{ ...styles.input, ...styles.amountInput }}
-                    className="tj-input"
-                  />
-                </div>
-              </div>
-              {error ? (
-                <p role="alert" style={styles.error}>
-                  {error}
-                </p>
-              ) : null}
-              <button
+              <TextField
+                label="Valor contado na gaveta"
+                id={`${id}-counted`}
+                type="text"
+                inputMode="decimal"
+                leading="R$"
+                value={counted}
+                onChange={(e) => setCounted(e.target.value)}
+                autoFocus
+                placeholder="0,00"
+                disabled={submitting}
+              />
+              {error ? <Alert>{error}</Alert> : null}
+              <Button
                 type="submit"
-                disabled={submitting || counted.trim() === ''}
-                style={{
-                  ...styles.cta,
-                  ...(submitting || counted.trim() === '' ? styles.ctaBusy : null),
-                }}
-                className="tj-press"
+                busy={submitting}
+                disabled={counted.trim() === ''}
+                fullWidth
               >
                 {submitting ? 'Fechando…' : 'Confirmar fechamento'}
-              </button>
+              </Button>
             </form>
           )}
         </>
       )}
-    </section>
+    </Card>
   );
 }
 
@@ -585,39 +513,23 @@ function EndOperationPanel({
   }
 
   return (
-    <section style={styles.card} aria-labelledby={`${id}-t`}>
+    <Card style={styles.card} aria-labelledby={`${id}-t`}>
       <h2 id={`${id}-t`} style={styles.cardTitle}>
         Encerrar operação
       </h2>
       <p style={styles.cardHelp}>
         Encerra o período operacional. Exige todos os caixas fechados e nenhuma conta aberta.
       </p>
-      {error ? (
-        <p role="alert" style={styles.error}>
-          {error}
-        </p>
-      ) : null}
+      {error ? <Alert>{error}</Alert> : null}
       <div style={styles.closeActions}>
-        <button
-          type="button"
-          onClick={confirm}
-          disabled={submitting}
-          style={{ ...styles.ctaDanger, ...(submitting ? styles.ctaBusy : null) }}
-          className="tj-press"
-        >
+        <Button variant="danger" onClick={confirm} busy={submitting} fullWidth>
           {submitting ? 'Encerrando…' : 'Encerrar operação'}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={submitting}
-          style={styles.ghostButtonWide}
-          className="tj-press"
-        >
+        </Button>
+        <Button variant="secondary" onClick={onCancel} disabled={submitting} fullWidth>
           Cancelar
-        </button>
+        </Button>
       </div>
-    </section>
+    </Card>
   );
 }
 
@@ -625,7 +537,9 @@ function SummaryRow({ label, value }: { label: string; value: string }): React.J
   return (
     <div style={styles.summaryItem}>
       <dt style={styles.infoLabel}>{label}</dt>
-      <dd style={styles.summaryValueNum}>{value}</dd>
+      <dd style={styles.summaryValueNum} className="tj-tnum">
+        {value}
+      </dd>
     </div>
   );
 }
@@ -634,35 +548,36 @@ function EmployeeLaunch({ sessionName }: { sessionName: string }): React.JSX.Ele
   const navigate = useNavigate();
   return (
     <Centered>
-      <section style={styles.card}>
+      <Card style={styles.card}>
         <StatusPill label="Operação aberta" />
         <h1 style={{ ...styles.cardTitle, marginTop: 'var(--tj-space-3)' }}>Pronto para lançar</h1>
         <p style={styles.cardHelp}>
           A operação "{sessionName}" está aberta. Informe a conta e comece o pedido.
         </p>
-        <button type="button" onClick={() => navigate('/lancar')} style={styles.cta} className="tj-press">
+        <Button onClick={() => navigate('/lancar')} fullWidth>
           Lançar pedido
-        </button>
-      </section>
+        </Button>
+      </Card>
     </Centered>
   );
 }
 
-function StatusPill({
-  label,
-  tone = 'open',
-}: {
-  label: string;
-  tone?: 'open' | 'neutral';
-}): React.JSX.Element {
-  const isOpen = tone === 'open';
+/** Skeleton de carregamento do turno (register product: skeleton, não spinner). */
+function ShiftSkeleton(): React.JSX.Element {
   return (
-    <span style={{ ...styles.pill, ...(isOpen ? styles.pillOpen : styles.pillNeutral) }}>
-      <span
-        aria-hidden="true"
-        style={{ ...styles.pillDot, background: isOpen ? 'var(--tj-olive)' : 'var(--tj-faint)' }}
-      />
-      {label}
+    <Card style={styles.card} aria-hidden="true">
+      <div style={{ ...styles.skel, width: '40%', height: '14px' }} />
+      <div style={{ ...styles.skel, width: '70%', height: '28px', marginTop: 'var(--tj-space-3)' }} />
+      <div style={{ ...styles.skel, width: '90%', height: '14px', marginTop: 'var(--tj-space-3)' }} />
+      <div style={{ ...styles.skel, width: '100%', height: '46px', marginTop: 'var(--tj-space-4)' }} />
+    </Card>
+  );
+}
+
+function StatusLive(): React.JSX.Element {
+  return (
+    <span style={styles.srOnly} role="status" aria-live="polite">
+      Carregando turno
     </span>
   );
 }
@@ -697,13 +612,12 @@ function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
-/* ── Estilos ─────────────────────────────────────────────────────────────── */
+/* ── Estilos (layout; vocabulário interativo vem de shared/ui + base.css) ──── */
 
 const styles: Record<string, CSSProperties> = {
   page: {
     minHeight: '100vh',
-    background: 'var(--tj-cream)',
-    fontFamily: 'var(--tj-font-ui)',
+    background: 'var(--tj-canvas)',
     color: 'var(--tj-ink)',
   },
   topbar: {
@@ -717,10 +631,10 @@ const styles: Record<string, CSSProperties> = {
   },
   brand: { display: 'flex', flexDirection: 'column', lineHeight: 1.1 },
   wordmark: {
-    fontFamily: 'var(--tj-font-display)',
-    fontWeight: 600,
-    fontSize: '22px',
-    letterSpacing: '-0.3px',
+    fontFamily: 'var(--tj-font-ui)',
+    fontWeight: 700,
+    fontSize: '20px',
+    letterSpacing: '-0.4px',
     color: 'var(--tj-ink)',
   },
   eyebrow: {
@@ -738,9 +652,10 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 600,
     padding: '2px 10px',
     borderRadius: 'var(--tj-radius-pill)',
-    color: 'var(--tj-cta)',
-    background: 'var(--tj-pale)',
+    color: 'var(--tj-brand-deep)',
+    background: 'var(--tj-brand-pale)',
   },
+  compactBtn: { minHeight: '44px', padding: '0 var(--tj-space-3)', fontSize: '15px' },
   main: {
     boxSizing: 'border-box',
     width: '100%',
@@ -750,20 +665,27 @@ const styles: Record<string, CSSProperties> = {
   },
 
   centered: { display: 'grid', placeItems: 'center', minHeight: '60vh' },
-  loading: { fontSize: '15px', color: 'var(--tj-muted)' },
+  srOnly: {
+    position: 'absolute',
+    width: '1px',
+    height: '1px',
+    margin: '-1px',
+    padding: 0,
+    overflow: 'hidden',
+    clip: 'rect(0 0 0 0)',
+    whiteSpace: 'nowrap',
+    border: 0,
+  },
+  skel: {
+    background: 'var(--tj-canvas-soft)',
+    borderRadius: 'var(--tj-radius-input)',
+  },
 
   card: {
     width: '100%',
     maxWidth: '420px',
-    boxSizing: 'border-box',
-    background: 'var(--tj-surface)',
-    border: '1px solid var(--tj-hairline)',
-    borderRadius: 'var(--tj-radius)',
-    boxShadow: '0 1px 2px rgba(26, 27, 18, 0.06)',
-    padding: 'var(--tj-space-5)',
   },
   cardEyebrow: {
-    margin: 0,
     fontSize: '12px',
     fontWeight: 600,
     letterSpacing: '0.1em',
@@ -779,11 +701,11 @@ const styles: Record<string, CSSProperties> = {
   cardStatusName: { fontSize: '14px', fontWeight: 600, color: 'var(--tj-body)' },
   cardTitle: {
     margin: 'var(--tj-space-1) 0 var(--tj-space-2)',
-    fontFamily: 'var(--tj-font-display)',
-    fontWeight: 600,
+    fontFamily: 'var(--tj-font-ui)',
+    fontWeight: 700,
     fontSize: '28px',
     lineHeight: 1.15,
-    letterSpacing: '-0.3px',
+    letterSpacing: '-0.5px',
     color: 'var(--tj-ink)',
   },
   cardHelp: {
@@ -794,108 +716,16 @@ const styles: Record<string, CSSProperties> = {
     maxWidth: '52ch',
   },
   form: { display: 'grid', gap: 'var(--tj-space-3)' },
-  field: { display: 'grid', gap: 'var(--tj-space-1)' },
-  label: { fontSize: '14px', fontWeight: 500, color: 'var(--tj-body)' },
-  input: {
-    boxSizing: 'border-box',
-    width: '100%',
-    minHeight: '46px',
-    padding: '0 var(--tj-space-3)',
-    fontFamily: 'var(--tj-font-ui)',
-    fontSize: '16px',
-    color: 'var(--tj-ink)',
-    background: 'var(--tj-surface)',
-    border: '1px solid var(--tj-hairline)',
-    borderRadius: 'var(--tj-radius-input)',
-    outline: 'none',
-    transition: 'border-color 120ms ease, box-shadow 120ms ease',
-  },
-  amountWrap: { position: 'relative', display: 'flex', alignItems: 'center' },
-  amountPrefix: {
-    position: 'absolute',
-    left: 'var(--tj-space-3)',
-    fontSize: '16px',
-    fontWeight: 600,
-    color: 'var(--tj-muted)',
-    pointerEvents: 'none',
-  },
-  amountInput: { paddingLeft: '44px', fontVariantNumeric: 'tabular-nums' },
-  error: {
-    margin: 0,
-    padding: 'var(--tj-space-2) var(--tj-space-3)',
-    fontSize: '14px',
-    fontWeight: 500,
-    color: 'var(--tj-danger-text)',
-    background: 'var(--tj-danger-pale)',
-    borderRadius: 'var(--tj-radius-input)',
-  },
-  cta: {
-    marginTop: 'var(--tj-space-1)',
-    minHeight: '48px',
-    padding: '0 var(--tj-space-4)',
-    fontFamily: 'var(--tj-font-ui)',
-    fontSize: '16px',
-    fontWeight: 600,
-    color: 'var(--tj-cta-contrast)',
-    background: 'var(--tj-cta)',
-    border: 'none',
-    borderRadius: 'var(--tj-radius-pill)',
-    cursor: 'pointer',
-    transition: 'transform 80ms ease, opacity 120ms ease',
-  },
-  ctaBusy: { opacity: 0.7, cursor: 'progress' },
-
-  ghostButton: {
-    minHeight: '44px',
-    padding: '0 var(--tj-space-3)',
-    fontFamily: 'var(--tj-font-ui)',
-    fontSize: '15px',
-    fontWeight: 600,
-    color: 'var(--tj-body)',
-    background: 'transparent',
-    border: '1px solid var(--tj-hairline-strong)',
-    borderRadius: 'var(--tj-radius-pill)',
-    cursor: 'pointer',
-    transition: 'transform 80ms ease, border-color 120ms ease, background 120ms ease',
-  },
-  ghostButtonWide: {
-    marginTop: 'var(--tj-space-4)',
-    minHeight: '46px',
-    width: '100%',
-    padding: '0 var(--tj-space-4)',
-    fontFamily: 'var(--tj-font-ui)',
-    fontSize: '15px',
-    fontWeight: 600,
-    color: 'var(--tj-body)',
-    background: 'transparent',
-    border: '1px solid var(--tj-hairline-strong)',
-    borderRadius: 'var(--tj-radius-pill)',
-    cursor: 'pointer',
-    transition: 'transform 80ms ease, border-color 120ms ease, background 120ms ease',
-  },
-
-  pill: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '7px',
-    fontSize: '13px',
-    fontWeight: 600,
-    padding: '4px 12px 4px 10px',
-    borderRadius: 'var(--tj-radius-pill)',
-  },
-  pillOpen: { color: 'var(--tj-cta)', background: 'var(--tj-pale)' },
-  pillNeutral: { color: 'var(--tj-muted)', background: 'var(--tj-canvas-soft)' },
-  pillDot: { width: '8px', height: '8px', borderRadius: '9999px' },
 
   dashboard: { display: 'grid', gap: 'var(--tj-space-4)' },
   dashHead: { display: 'grid', gap: 'var(--tj-space-2)', justifyItems: 'start' },
   dashTitle: {
     margin: 0,
-    fontFamily: 'var(--tj-font-display)',
-    fontWeight: 600,
+    fontFamily: 'var(--tj-font-ui)',
+    fontWeight: 700,
     fontSize: '30px',
     lineHeight: 1.1,
-    letterSpacing: '-0.4px',
+    letterSpacing: '-0.6px',
     color: 'var(--tj-ink)',
   },
   panel: {
@@ -904,9 +734,9 @@ const styles: Record<string, CSSProperties> = {
     gap: 'var(--tj-space-5)',
     background: 'var(--tj-surface)',
     border: '1px solid var(--tj-hairline)',
-    borderRadius: 'var(--tj-radius)',
+    borderRadius: 'var(--tj-radius-md)',
     padding: 'var(--tj-space-5)',
-    boxShadow: '0 1px 2px rgba(26, 27, 18, 0.06)',
+    boxShadow: 'var(--tj-shadow-card)',
   },
   infoBlock: { display: 'grid', gap: '6px', minWidth: '200px', flex: '1 1 200px' },
   panelDivider: { width: '1px', alignSelf: 'stretch', background: 'var(--tj-hairline)' },
@@ -920,82 +750,29 @@ const styles: Record<string, CSSProperties> = {
   },
   infoValue: {
     margin: 0,
-    fontFamily: 'var(--tj-font-display)',
-    fontWeight: 600,
+    fontFamily: 'var(--tj-font-ui)',
+    fontWeight: 700,
     fontSize: '24px',
+    letterSpacing: '-0.3px',
     color: 'var(--tj-ink)',
   },
   infoValueNum: {
     margin: 0,
     fontSize: '26px',
     fontWeight: 700,
-    fontVariantNumeric: 'tabular-nums',
     color: 'var(--tj-ink)',
   },
   infoMeta: { margin: 0, fontSize: '13px', color: 'var(--tj-muted)' },
 
   closeActions: { display: 'grid', gap: 'var(--tj-space-2)', marginTop: 'var(--tj-space-2)' },
-  summaryGrid: {
-    margin: '0 0 var(--tj-space-3)',
-    display: 'grid',
-    gap: 'var(--tj-space-2)',
-  },
+  summaryGrid: { margin: '0 0 var(--tj-space-3)', display: 'grid', gap: 'var(--tj-space-2)' },
   summaryItem: {
     display: 'flex',
     alignItems: 'baseline',
     justifyContent: 'space-between',
     gap: 'var(--tj-space-3)',
   },
-  summaryValueNum: {
-    margin: 0,
-    fontSize: '18px',
-    fontWeight: 700,
-    fontVariantNumeric: 'tabular-nums',
-    color: 'var(--tj-ink)',
-  },
-  diffPos: { color: 'var(--tj-olive)' },
+  summaryValueNum: { margin: 0, fontSize: '18px', fontWeight: 700, color: 'var(--tj-ink)' },
+  diffPos: { color: 'var(--tj-ready-text)' },
   diffNeg: { color: 'var(--tj-danger-text)' },
-  warn: {
-    margin: 'var(--tj-space-1) 0 0',
-    padding: 'var(--tj-space-2) var(--tj-space-3)',
-    fontSize: '14px',
-    fontWeight: 500,
-    lineHeight: 1.45,
-    color: 'var(--tj-danger-text)',
-    background: 'var(--tj-danger-pale)',
-    borderRadius: 'var(--tj-radius-input)',
-  },
-  ctaDanger: {
-    minHeight: '48px',
-    padding: '0 var(--tj-space-4)',
-    fontFamily: 'var(--tj-font-ui)',
-    fontSize: '16px',
-    fontWeight: 600,
-    color: 'var(--tj-cta-contrast)',
-    background: 'var(--tj-danger-text)',
-    border: 'none',
-    borderRadius: 'var(--tj-radius-pill)',
-    cursor: 'pointer',
-    transition: 'transform 80ms ease, opacity 120ms ease',
-  },
 };
-
-// Pseudo-estados que estilo inline não cobre: foco visível (ring oliva), placeholder,
-// press dos botões, hover do ghost e prefers-reduced-motion.
-const scopedCss = `
-.tj-input:focus-visible {
-  border-color: var(--tj-olive);
-  box-shadow: 0 0 0 3px var(--tj-pale);
-}
-.tj-input::placeholder { color: var(--tj-faint); }
-.tj-press:focus-visible {
-  outline: 3px solid var(--tj-pale);
-  outline-offset: 2px;
-}
-.tj-press:not(:disabled):active { transform: scale(0.97); }
-button.tj-press:not(:disabled):hover { border-color: var(--tj-hairline-strong); }
-@media (prefers-reduced-motion: reduce) {
-  .tj-input, .tj-press { transition: none; }
-  .tj-press:not(:disabled):active { transform: none; }
-}
-`;

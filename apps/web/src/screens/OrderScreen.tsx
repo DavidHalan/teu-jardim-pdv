@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { AccountDto, ProductDto } from '@teu-jardim/shared';
@@ -10,6 +10,7 @@ import { accountsApi } from '../accounts/accounts-api';
 import { formatBRL } from '../lib/money';
 import { ApiError } from '../lib/api';
 import { useAuth } from '../auth/AuthContext';
+import { Alert, Button, ScreenHeader, Segmented, StatusPill, TextField } from '../shared/ui';
 
 /**
  * Tela de pedido (PRD §12 passos 2–6, RB-018). Com a conta escolhida, o garçom
@@ -140,216 +141,138 @@ export function OrderScreen(): React.JSX.Element {
   return (
     <div style={styles.page}>
       <style>{scopedCss}</style>
-
-      <header style={styles.topbar}>
-        <button
-          type="button"
-          onClick={() => navigate('/')}
-          style={styles.backButton}
-          className="tj-press"
-          aria-label="Voltar ao início"
-        >
-          <span aria-hidden="true" style={styles.backArrow}>
-            ←
-          </span>
-          Início
-        </button>
-        <span style={styles.headTitle}>{account ? accountLabel(account) : 'Conta'}</span>
-      </header>
+      <ScreenHeader
+        onBack={() => navigate('/')}
+        backLabel="Início"
+        title={account ? accountLabel(account) : 'Conta'}
+        sticky
+      />
 
       {/* Ações de caixa — visível apenas para CASHIER / ADMIN (RB-026..031) */}
       {isCashier && account ? (
         <div style={styles.cashierBlock}>
-          {/* Totais da conta */}
           <div style={styles.cashierTotals}>
             <div style={styles.cashierTotalRow}>
               <span style={styles.cashierLabel}>Subtotal</span>
-              <span style={styles.cashierValue}>{formatBRL(account.subtotal)}</span>
+              <span style={styles.cashierValue} className="tj-tnum">
+                {formatBRL(account.subtotal)}
+              </span>
             </div>
             {account.discountTotal !== '0.00' ? (
               <div style={styles.cashierTotalRow}>
                 <span style={styles.cashierLabel}>Desconto</span>
-                <span style={{ ...styles.cashierValue, color: 'var(--tj-danger-text)' }}>
+                <span style={{ ...styles.cashierValue, color: 'var(--tj-danger-text)' }} className="tj-tnum">
                   − {formatBRL(account.discountTotal)}
                 </span>
               </div>
             ) : null}
             <div style={{ ...styles.cashierTotalRow, ...styles.cashierTotalStrong }}>
               <span style={styles.cashierTotalLabel}>Total</span>
-              <span style={styles.cashierTotalAmount}>{formatBRL(account.total)}</span>
+              <span style={styles.cashierTotalAmount} className="tj-tnum">
+                {formatBRL(account.total)}
+              </span>
             </div>
           </div>
 
-          {/* Desconto inline */}
           {showDiscount ? (
             <div style={styles.cashierForm}>
               <div style={styles.cashierFormTitle}>Aplicar desconto</div>
-              <div style={styles.discountTypeSeg} role="group" aria-label="Tipo de desconto">
-                {(
-                  [
-                    { value: DiscountType.PERCENT, label: '%' },
-                    { value: DiscountType.FIXED, label: 'R$' },
-                  ] as const
-                ).map(({ value, label }) => {
-                  const on = discountType === value;
-                  return (
-                    <button
-                      key={value}
-                      type="button"
-                      aria-pressed={on}
-                      onClick={() => setDiscountType(value)}
-                      style={{ ...styles.segBtn, ...(on ? styles.segBtnOn : null) }}
-                      className="tj-press"
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
-              <div style={styles.field}>
-                <label htmlFor="tj-disc-value" style={styles.label}>
-                  {discountType === DiscountType.PERCENT ? 'Percentual (%)' : 'Valor (R$)'}
-                </label>
-                <input
-                  id="tj-disc-value"
-                  type="text"
-                  inputMode="decimal"
-                  value={discountValue}
-                  onChange={(e) => setDiscountValue(e.target.value)}
-                  placeholder={discountType === DiscountType.PERCENT ? 'Ex.: 10' : 'Ex.: 5.00'}
-                  style={styles.input}
-                  className="tj-input"
-                />
-              </div>
-              <div style={styles.field}>
-                <label htmlFor="tj-disc-reason" style={styles.label}>
-                  Motivo (opcional)
-                </label>
-                <input
-                  id="tj-disc-reason"
-                  type="text"
-                  value={discountReason}
-                  onChange={(e) => setDiscountReason(e.target.value)}
-                  placeholder="Ex.: Cortesia gerência"
-                  style={styles.input}
-                  className="tj-input"
-                />
-              </div>
-              {discountError ? (
-                <p role="alert" style={styles.error}>
-                  {discountError}
-                </p>
-              ) : null}
+              <Segmented
+                ariaLabel="Tipo de desconto"
+                columns={2}
+                options={[
+                  { value: DiscountType.PERCENT, label: '%' },
+                  { value: DiscountType.FIXED, label: 'R$' },
+                ]}
+                value={discountType}
+                onChange={setDiscountType}
+              />
+              <TextField
+                label={discountType === DiscountType.PERCENT ? 'Percentual (%)' : 'Valor (R$)'}
+                id="tj-disc-value"
+                type="text"
+                inputMode="decimal"
+                value={discountValue}
+                onChange={(e) => setDiscountValue(e.target.value)}
+                placeholder={discountType === DiscountType.PERCENT ? 'Ex.: 10' : 'Ex.: 5.00'}
+              />
+              <TextField
+                label="Motivo (opcional)"
+                id="tj-disc-reason"
+                type="text"
+                value={discountReason}
+                onChange={(e) => setDiscountReason(e.target.value)}
+                placeholder="Ex.: Cortesia gerência"
+              />
+              {discountError ? <Alert>{discountError}</Alert> : null}
               <div style={styles.formActions}>
-                <button
-                  type="button"
+                <Button
+                  variant="secondary"
                   onClick={() => {
                     setShowDiscount(false);
                     setDiscountValue('');
                     setDiscountReason('');
                     setDiscountError(null);
                   }}
-                  style={styles.ghost}
-                  className="tj-press"
                 >
                   Cancelar
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
                   onClick={applyDiscount}
-                  disabled={!discountValue.trim() || discountSubmitting}
-                  style={{
-                    ...styles.cta,
-                    ...(!discountValue.trim() || discountSubmitting ? styles.ctaDisabled : null),
-                  }}
-                  className="tj-press"
+                  busy={discountSubmitting}
+                  disabled={!discountValue.trim() && !discountSubmitting}
                 >
                   {discountSubmitting ? 'Aplicando…' : 'Aplicar'}
-                </button>
+                </Button>
               </div>
             </div>
           ) : null}
 
-          {/* Cancelar inline */}
           {showCancel ? (
             <div style={{ ...styles.cashierForm, ...styles.cashierFormDanger }}>
               <div style={styles.cashierFormTitle}>Cancelar conta</div>
-              <div style={styles.field}>
-                <label htmlFor="tj-cancel-reason" style={styles.label}>
-                  Motivo (obrigatório)
-                </label>
-                <input
-                  id="tj-cancel-reason"
-                  type="text"
-                  value={cancelReason}
-                  onChange={(e) => setCancelReason(e.target.value)}
-                  placeholder="Ex.: Desistência do cliente"
-                  style={styles.input}
-                  className="tj-input"
-                  autoFocus
-                />
-              </div>
-              {cancelError ? (
-                <p role="alert" style={styles.error}>
-                  {cancelError}
-                </p>
-              ) : null}
+              <TextField
+                label="Motivo (obrigatório)"
+                id="tj-cancel-reason"
+                type="text"
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="Ex.: Desistência do cliente"
+                autoFocus
+              />
+              {cancelError ? <Alert>{cancelError}</Alert> : null}
               <div style={styles.formActions}>
-                <button
-                  type="button"
+                <Button
+                  variant="secondary"
                   onClick={() => {
                     setShowCancel(false);
                     setCancelReason('');
                     setCancelError(null);
                   }}
-                  style={styles.ghost}
-                  className="tj-press"
                 >
                   Não cancelar
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant="danger"
                   onClick={cancelAccount}
-                  disabled={!cancelReason.trim() || cancelSubmitting}
-                  style={{
-                    ...styles.ctaDanger,
-                    ...(!cancelReason.trim() || cancelSubmitting ? styles.ctaDisabled : null),
-                  }}
-                  className="tj-press"
+                  busy={cancelSubmitting}
+                  disabled={!cancelReason.trim() && !cancelSubmitting}
                 >
                   {cancelSubmitting ? 'Cancelando…' : 'Confirmar cancelamento'}
-                </button>
+                </Button>
               </div>
             </div>
           ) : null}
 
-          {/* Botões de ação */}
           {!showDiscount && !showCancel ? (
             <div style={styles.cashierActions}>
-              <button
-                type="button"
-                onClick={() => setShowDiscount(true)}
-                style={styles.ghost}
-                className="tj-press"
-              >
+              <Button variant="secondary" onClick={() => setShowDiscount(true)}>
                 Aplicar desconto
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowCancel(true)}
-                style={styles.ghostDanger}
-                className="tj-press"
-              >
+              </Button>
+              <Button variant="danger-ghost" onClick={() => setShowCancel(true)}>
                 Cancelar conta
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate(`/conta/${id}/pagar`)}
-                style={styles.cta}
-                className="tj-press"
-              >
-                Pagar
-              </button>
+              </Button>
+              <Button onClick={() => navigate(`/conta/${id}/pagar`)}>Pagar</Button>
             </div>
           ) : null}
         </div>
@@ -362,13 +285,12 @@ export function OrderScreen(): React.JSX.Element {
       ) : error ? (
         <div style={styles.state}>
           <p style={styles.stateMsg}>Não foi possível carregar o catálogo.</p>
-          <button type="button" onClick={() => navigate('/')} style={styles.ghost} className="tj-press">
+          <Button variant="secondary" onClick={() => navigate('/')}>
             Voltar
-          </button>
+          </Button>
         </div>
       ) : (
         <div style={styles.layout} className="tj-order-grid">
-          {/* Catálogo */}
           <section style={styles.catalog} aria-label="Catálogo">
             <div style={styles.tabs} role="tablist" aria-label="Categorias">
               {categories.map((c) => {
@@ -400,7 +322,7 @@ export function OrderScreen(): React.JSX.Element {
                 >
                   <span style={styles.productName}>{p.name}</span>
                   <span style={styles.productFoot}>
-                    <span style={styles.productPrice}>
+                    <span style={styles.productPrice} className="tj-tnum">
                       {formatBRL(p.price)}
                       {p.type === 'WEIGHED' ? <span style={styles.unitSuffix}> /kg</span> : null}
                     </span>
@@ -414,7 +336,6 @@ export function OrderScreen(): React.JSX.Element {
             </div>
           </section>
 
-          {/* Carrinho */}
           <section style={styles.cart} aria-label="Pedido">
             <h2 style={styles.cartTitle}>Pedido</h2>
 
@@ -426,12 +347,16 @@ export function OrderScreen(): React.JSX.Element {
                   <li key={l.key} style={styles.line}>
                     <div style={styles.lineMain}>
                       <span style={styles.lineName}>{l.product.name}</span>
-                      <span style={styles.lineDetail}>{lineDetail(l)}</span>
+                      <span style={styles.lineDetail} className="tj-tnum">
+                        {lineDetail(l)}
+                      </span>
                       {l.observationIds.length > 0 ? (
                         <span style={styles.lineObs}>{obsNames(l).join(' · ')}</span>
                       ) : null}
                     </div>
-                    <span style={styles.linePrice}>{formatBRL(previewLineTotal(l))}</span>
+                    <span style={styles.linePrice} className="tj-tnum">
+                      {formatBRL(previewLineTotal(l))}
+                    </span>
                     <button
                       type="button"
                       onClick={() => removeLine(l.key)}
@@ -449,29 +374,23 @@ export function OrderScreen(): React.JSX.Element {
             <div style={styles.summary}>
               <div style={styles.summaryRow}>
                 <span style={styles.summaryLabel}>Total</span>
-                <span style={styles.summaryValue}>{formatBRL(cartTotal)}</span>
+                <span style={styles.summaryValue} className="tj-tnum">
+                  {formatBRL(cartTotal)}
+                </span>
               </div>
               <p style={styles.summaryNote}>Prévia. O servidor confirma o valor final.</p>
             </div>
 
-            {submitError ? (
-              <p role="alert" style={styles.error}>
-                {submitError}
-              </p>
-            ) : null}
+            {submitError ? <Alert>{submitError}</Alert> : null}
 
-            <button
-              type="button"
+            <Button
               onClick={confirm}
-              disabled={lines.length === 0 || submitting}
-              style={{
-                ...styles.cta,
-                ...(lines.length === 0 || submitting ? styles.ctaDisabled : null),
-              }}
-              className="tj-press"
+              busy={submitting}
+              disabled={lines.length === 0 && !submitting}
+              fullWidth
             >
               {submitting ? 'Lançando…' : 'Confirmar pedido'}
-            </button>
+            </Button>
           </section>
         </div>
       )}
@@ -506,6 +425,48 @@ function AddPanel({
   const [grams, setGrams] = useState('');
   const [obs, setObs] = useState<string[]>([]);
 
+  // A11y do bottom-sheet (modal): trava o foco, fecha no Esc, devolve o foco ao sair.
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const onCancelRef = useRef(onCancel);
+  onCancelRef.current = onCancel;
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    const el = sheetRef.current;
+    const focusables = (): HTMLElement[] =>
+      el
+        ? Array.from(
+            el.querySelectorAll<HTMLElement>(
+              'button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])',
+            ),
+          ).filter((f) => !f.hasAttribute('disabled'))
+        : [];
+    focusables()[0]?.focus();
+    function onKey(e: KeyboardEvent): void {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onCancelRef.current();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const f = focusables();
+      const first = f[0];
+      const last = f[f.length - 1];
+      if (!first || !last) return;
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      previous?.focus?.();
+    };
+  }, []);
+
   const gramsNum = Number(grams);
   const gramsValid = Number.isInteger(gramsNum) && gramsNum >= 1;
   const canAdd = isWeighed ? gramsValid : quantity >= 1;
@@ -534,6 +495,7 @@ function AddPanel({
   return (
     <div style={styles.backdrop} onClick={onCancel} role="presentation">
       <div
+        ref={sheetRef}
         style={styles.sheet}
         role="dialog"
         aria-modal="true"
@@ -542,31 +504,25 @@ function AddPanel({
       >
         <div style={styles.sheetHead}>
           <h2 style={styles.sheetTitle}>{product.name}</h2>
-          <span style={styles.sheetPrice}>
+          <span style={styles.sheetPrice} className="tj-tnum">
             {formatBRL(product.price)}
             {isWeighed ? <span style={styles.unitSuffix}> /kg</span> : null}
           </span>
         </div>
 
         {isWeighed ? (
-          <div style={styles.field}>
-            <label htmlFor="tj-grams" style={styles.label}>
-              Peso (gramas)
-            </label>
-            <input
-              id="tj-grams"
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              value={grams}
-              onChange={(e) => setGrams(e.target.value.replace(/\D/g, ''))}
-              autoFocus
-              placeholder="Ex.: 453"
-              maxLength={6}
-              style={styles.input}
-              className="tj-input"
-            />
-          </div>
+          <TextField
+            label="Peso (gramas)"
+            id="tj-grams"
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            value={grams}
+            onChange={(e) => setGrams(e.target.value.replace(/\D/g, ''))}
+            placeholder="Ex.: 453"
+            maxLength={6}
+            style={{ fontVariantNumeric: 'tabular-nums' }}
+          />
         ) : (
           <>
             {product.observations.length > 0 ? (
@@ -604,7 +560,7 @@ function AddPanel({
                 >
                   −
                 </button>
-                <span style={styles.stepValue} aria-live="polite">
+                <span style={styles.stepValue} className="tj-tnum" aria-live="polite">
                   {quantity}
                 </span>
                 <button
@@ -623,22 +579,18 @@ function AddPanel({
 
         <div style={styles.sheetPreview}>
           <span style={styles.summaryLabel}>Subtotal</span>
-          <span style={styles.summaryValue}>{formatBRL(preview)}</span>
+          <span style={styles.summaryValue} className="tj-tnum">
+            {formatBRL(preview)}
+          </span>
         </div>
 
         <div style={styles.sheetActions}>
-          <button type="button" onClick={onCancel} style={styles.ghost} className="tj-press">
+          <Button variant="secondary" onClick={onCancel}>
             Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={submit}
-            disabled={!canAdd}
-            style={{ ...styles.cta, ...(canAdd ? null : styles.ctaDisabled) }}
-            className="tj-press"
-          >
+          </Button>
+          <Button onClick={submit} disabled={!canAdd}>
             Adicionar
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -656,38 +608,26 @@ function Confirmation({
 }): React.JSX.Element {
   return (
     <div style={styles.page}>
-      <style>{scopedCss}</style>
       <main style={styles.confirmMain}>
         <section style={styles.confirmCard}>
-          <span style={styles.confirmBadge}>
-            <span aria-hidden="true" style={styles.confirmDot} />
-            Pedido lançado
-          </span>
+          <StatusPill label="Pedido lançado" tone="ready" />
           <h1 style={styles.confirmTitle}>{accountLabel(account)}</h1>
           <p style={styles.confirmCount}>
             {account.items.length === 1 ? '1 item' : `${account.items.length} itens`} na conta
           </p>
           <div style={styles.confirmTotalRow}>
             <span style={styles.summaryLabel}>Total da conta</span>
-            <span style={styles.confirmTotal}>{formatBRL(account.total)}</span>
+            <span style={styles.confirmTotal} className="tj-tnum">
+              {formatBRL(account.total)}
+            </span>
           </div>
           <div style={styles.confirmActions}>
-            <button
-              type="button"
-              onClick={() => navigate('/lancar')}
-              style={styles.ghostWide}
-              className="tj-press"
-            >
+            <Button variant="secondary" fullWidth onClick={() => navigate('/lancar')}>
               Lançar em outra conta
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/')}
-              style={styles.cta}
-              className="tj-press"
-            >
+            </Button>
+            <Button fullWidth onClick={() => navigate('/')}>
               Voltar ao início
-            </button>
+            </Button>
           </div>
         </section>
       </main>
@@ -732,49 +672,12 @@ function obsNames(l: CartLine): string[] {
     .filter((n): n is string => Boolean(n));
 }
 
-/* ── Estilos ─────────────────────────────────────────────────────────────── */
+/* ── Estilos (layout; vocabulário interativo vem de shared/ui + base.css) ──── */
 
 const styles: Record<string, CSSProperties> = {
   page: {
     minHeight: '100vh',
-    background: 'var(--tj-cream)',
-    fontFamily: 'var(--tj-font-ui)',
-    color: 'var(--tj-ink)',
-  },
-  topbar: {
-    position: 'sticky',
-    top: 0,
-    zIndex: 5,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 'var(--tj-space-3)',
-    padding: 'var(--tj-space-2) var(--tj-space-4)',
-    background: 'var(--tj-surface)',
-    borderBottom: '1px solid var(--tj-hairline)',
-  },
-  backButton: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 'var(--tj-space-2)',
-    minHeight: '44px',
-    padding: '0 var(--tj-space-3) 0 var(--tj-space-2)',
-    fontFamily: 'var(--tj-font-ui)',
-    fontSize: '15px',
-    fontWeight: 600,
-    color: 'var(--tj-body)',
-    background: 'transparent',
-    border: 'none',
-    borderRadius: 'var(--tj-radius-pill)',
-    cursor: 'pointer',
-    transition: 'transform 80ms ease, background 120ms ease',
-  },
-  backArrow: { fontSize: '18px', lineHeight: 1 },
-  headTitle: {
-    fontFamily: 'var(--tj-font-display)',
-    fontWeight: 600,
-    fontSize: '18px',
-    letterSpacing: '-0.2px',
+    background: 'var(--tj-canvas)',
     color: 'var(--tj-ink)',
   },
 
@@ -802,12 +705,7 @@ const styles: Record<string, CSSProperties> = {
   },
 
   catalog: { display: 'grid', gap: 'var(--tj-space-3)', minWidth: 0 },
-  tabs: {
-    display: 'flex',
-    gap: '6px',
-    overflowX: 'auto',
-    paddingBottom: '2px',
-  },
+  tabs: { display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '2px' },
   tab: {
     flex: '0 0 auto',
     minHeight: '44px',
@@ -823,9 +721,9 @@ const styles: Record<string, CSSProperties> = {
     transition: 'background 120ms ease, color 120ms ease, border-color 120ms ease',
   },
   tabOn: {
-    color: 'var(--tj-cta-contrast)',
-    background: 'var(--tj-cta)',
-    border: '1px solid var(--tj-cta)',
+    color: 'var(--tj-on-dark)',
+    background: 'var(--tj-brand-deep)',
+    border: '1px solid var(--tj-brand-deep)',
   },
   productGrid: {
     display: 'grid',
@@ -841,16 +739,10 @@ const styles: Record<string, CSSProperties> = {
     padding: 'var(--tj-space-3)',
     background: 'var(--tj-surface)',
     border: '1px solid var(--tj-hairline)',
-    borderRadius: 'var(--tj-radius)',
+    borderRadius: 'var(--tj-radius-md)',
     cursor: 'pointer',
-    transition: 'transform 80ms ease, border-color 120ms ease, box-shadow 120ms ease',
   },
-  productName: {
-    fontSize: '16px',
-    fontWeight: 600,
-    lineHeight: 1.25,
-    color: 'var(--tj-ink)',
-  },
+  productName: { fontSize: '16px', fontWeight: 600, lineHeight: 1.25, color: 'var(--tj-ink)' },
   productFoot: {
     display: 'flex',
     alignItems: 'flex-end',
@@ -859,12 +751,7 @@ const styles: Record<string, CSSProperties> = {
     width: '100%',
     marginTop: 'auto',
   },
-  productPrice: {
-    fontSize: '15px',
-    fontWeight: 700,
-    color: 'var(--tj-body)',
-    fontVariantNumeric: 'tabular-nums',
-  },
+  productPrice: { fontSize: '15px', fontWeight: 700, color: 'var(--tj-body)' },
   unitSuffix: { fontSize: '12px', fontWeight: 600, color: 'var(--tj-faint)' },
   chips: { display: 'inline-flex', gap: '4px' },
   chip: {
@@ -874,8 +761,8 @@ const styles: Record<string, CSSProperties> = {
     textTransform: 'uppercase',
     padding: '2px 7px',
     borderRadius: 'var(--tj-radius-input)',
-    color: 'var(--tj-cta)',
-    background: 'var(--tj-pale)',
+    color: 'var(--tj-brand-deep)',
+    background: 'var(--tj-brand-pale)',
   },
 
   cart: {
@@ -884,15 +771,16 @@ const styles: Record<string, CSSProperties> = {
     alignContent: 'start',
     background: 'var(--tj-surface)',
     border: '1px solid var(--tj-hairline)',
-    borderRadius: 'var(--tj-radius)',
+    borderRadius: 'var(--tj-radius-md)',
     padding: 'var(--tj-space-4)',
-    boxShadow: '0 1px 2px rgba(26, 27, 18, 0.06)',
+    boxShadow: 'var(--tj-shadow-card)',
   },
   cartTitle: {
     margin: 0,
-    fontFamily: 'var(--tj-font-display)',
-    fontWeight: 600,
+    fontFamily: 'var(--tj-font-ui)',
+    fontWeight: 700,
     fontSize: '20px',
+    letterSpacing: '-0.3px',
     color: 'var(--tj-ink)',
   },
   cartEmpty: { margin: 0, fontSize: '14px', color: 'var(--tj-faint)', lineHeight: 1.5 },
@@ -907,17 +795,12 @@ const styles: Record<string, CSSProperties> = {
   },
   lineMain: { display: 'grid', gap: '1px', minWidth: 0 },
   lineName: { fontSize: '15px', fontWeight: 600, color: 'var(--tj-ink)' },
-  lineDetail: { fontSize: '13px', color: 'var(--tj-muted)', fontVariantNumeric: 'tabular-nums' },
+  lineDetail: { fontSize: '13px', color: 'var(--tj-muted)' },
   lineObs: { fontSize: '12px', color: 'var(--tj-faint)' },
-  linePrice: {
-    fontSize: '15px',
-    fontWeight: 700,
-    color: 'var(--tj-body)',
-    fontVariantNumeric: 'tabular-nums',
-  },
+  linePrice: { fontSize: '15px', fontWeight: 700, color: 'var(--tj-body)' },
   removeButton: {
-    minWidth: '32px',
-    minHeight: '32px',
+    width: '44px',
+    height: '44px',
     fontSize: '20px',
     lineHeight: 1,
     color: 'var(--tj-muted)',
@@ -929,66 +812,8 @@ const styles: Record<string, CSSProperties> = {
   summary: { display: 'grid', gap: '2px', marginTop: 'var(--tj-space-1)' },
   summaryRow: { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' },
   summaryLabel: { fontSize: '14px', fontWeight: 500, color: 'var(--tj-muted)' },
-  summaryValue: {
-    fontSize: '22px',
-    fontWeight: 700,
-    color: 'var(--tj-ink)',
-    fontVariantNumeric: 'tabular-nums',
-  },
+  summaryValue: { fontSize: '22px', fontWeight: 700, color: 'var(--tj-ink)' },
   summaryNote: { margin: 0, fontSize: '12px', color: 'var(--tj-faint)' },
-
-  error: {
-    margin: 0,
-    padding: 'var(--tj-space-2) var(--tj-space-3)',
-    fontSize: '14px',
-    fontWeight: 500,
-    lineHeight: 1.45,
-    color: 'var(--tj-danger-text)',
-    background: 'var(--tj-danger-pale)',
-    borderRadius: 'var(--tj-radius-input)',
-  },
-
-  cta: {
-    minHeight: '48px',
-    padding: '0 var(--tj-space-4)',
-    fontFamily: 'var(--tj-font-ui)',
-    fontSize: '16px',
-    fontWeight: 600,
-    color: 'var(--tj-cta-contrast)',
-    background: 'var(--tj-cta)',
-    border: 'none',
-    borderRadius: 'var(--tj-radius-pill)',
-    cursor: 'pointer',
-    transition: 'transform 80ms ease, opacity 120ms ease',
-  },
-  ctaDisabled: { opacity: 0.5, cursor: 'not-allowed' },
-  ghost: {
-    minHeight: '48px',
-    padding: '0 var(--tj-space-4)',
-    fontFamily: 'var(--tj-font-ui)',
-    fontSize: '15px',
-    fontWeight: 600,
-    color: 'var(--tj-body)',
-    background: 'transparent',
-    border: '1px solid var(--tj-hairline-strong)',
-    borderRadius: 'var(--tj-radius-pill)',
-    cursor: 'pointer',
-    transition: 'transform 80ms ease, border-color 120ms ease',
-  },
-  ghostWide: {
-    minHeight: '48px',
-    width: '100%',
-    padding: '0 var(--tj-space-4)',
-    fontFamily: 'var(--tj-font-ui)',
-    fontSize: '15px',
-    fontWeight: 600,
-    color: 'var(--tj-body)',
-    background: 'transparent',
-    border: '1px solid var(--tj-hairline-strong)',
-    borderRadius: 'var(--tj-radius-pill)',
-    cursor: 'pointer',
-    transition: 'transform 80ms ease, border-color 120ms ease',
-  },
 
   // Painel de adição (bottom sheet)
   backdrop: {
@@ -998,7 +823,7 @@ const styles: Record<string, CSSProperties> = {
     display: 'flex',
     alignItems: 'flex-end',
     justifyContent: 'center',
-    background: 'rgba(26, 27, 18, 0.32)',
+    background: 'oklch(0.218 0.0169 113 / 0.32)',
   },
   sheet: {
     boxSizing: 'border-box',
@@ -1007,11 +832,11 @@ const styles: Record<string, CSSProperties> = {
     display: 'grid',
     gap: 'var(--tj-space-4)',
     background: 'var(--tj-surface)',
-    borderTopLeftRadius: 'var(--tj-radius)',
-    borderTopRightRadius: 'var(--tj-radius)',
+    borderTopLeftRadius: 'var(--tj-radius-md)',
+    borderTopRightRadius: 'var(--tj-radius-md)',
     border: '1px solid var(--tj-hairline)',
     padding: 'var(--tj-space-4)',
-    boxShadow: '0 -8px 32px rgba(26, 27, 18, 0.18)',
+    boxShadow: 'var(--tj-shadow-pop)',
   },
   sheetHead: {
     display: 'flex',
@@ -1021,34 +846,15 @@ const styles: Record<string, CSSProperties> = {
   },
   sheetTitle: {
     margin: 0,
-    fontFamily: 'var(--tj-font-display)',
-    fontWeight: 600,
-    fontSize: '22px',
-    color: 'var(--tj-ink)',
-  },
-  sheetPrice: {
-    fontSize: '15px',
-    fontWeight: 700,
-    color: 'var(--tj-body)',
-    fontVariantNumeric: 'tabular-nums',
-  },
-  field: { display: 'grid', gap: 'var(--tj-space-2)' },
-  label: { fontSize: '14px', fontWeight: 500, color: 'var(--tj-body)' },
-  input: {
-    boxSizing: 'border-box',
-    width: '100%',
-    minHeight: '46px',
-    padding: '0 var(--tj-space-3)',
     fontFamily: 'var(--tj-font-ui)',
-    fontSize: '16px',
+    fontWeight: 700,
+    fontSize: '22px',
+    letterSpacing: '-0.3px',
     color: 'var(--tj-ink)',
-    background: 'var(--tj-surface)',
-    border: '1px solid var(--tj-hairline)',
-    borderRadius: 'var(--tj-radius-input)',
-    outline: 'none',
-    fontVariantNumeric: 'tabular-nums',
-    transition: 'border-color 120ms ease, box-shadow 120ms ease',
   },
+  sheetPrice: { fontSize: '15px', fontWeight: 700, color: 'var(--tj-body)' },
+  field: { display: 'grid', gap: 'var(--tj-space-2)' },
+  label: { fontSize: 'var(--tj-fs-body-sm)', fontWeight: 500, color: 'var(--tj-body)' },
   obsWrap: { display: 'flex', flexWrap: 'wrap', gap: '8px' },
   obsChip: {
     minHeight: '44px',
@@ -1061,12 +867,11 @@ const styles: Record<string, CSSProperties> = {
     border: '1px solid var(--tj-hairline-strong)',
     borderRadius: 'var(--tj-radius-pill)',
     cursor: 'pointer',
-    transition: 'background 120ms ease, color 120ms ease, border-color 120ms ease',
   },
   obsChipOn: {
-    color: 'var(--tj-cta)',
-    background: 'var(--tj-pale)',
-    border: '1px solid var(--tj-olive)',
+    color: 'var(--tj-brand-deep)',
+    background: 'var(--tj-brand-pale)',
+    border: '1px solid var(--tj-brand)',
   },
   stepper: {
     display: 'inline-flex',
@@ -1083,7 +888,7 @@ const styles: Record<string, CSSProperties> = {
     fontSize: '22px',
     lineHeight: 1,
     fontWeight: 600,
-    color: 'var(--tj-cta)',
+    color: 'var(--tj-brand-deep)',
     background: 'var(--tj-surface)',
     border: '1px solid var(--tj-hairline)',
     borderRadius: '9999px',
@@ -1095,7 +900,6 @@ const styles: Record<string, CSSProperties> = {
     fontSize: '20px',
     fontWeight: 700,
     color: 'var(--tj-ink)',
-    fontVariantNumeric: 'tabular-nums',
   },
   sheetPreview: {
     display: 'flex',
@@ -1117,107 +921,43 @@ const styles: Record<string, CSSProperties> = {
   cashierTotals: {
     background: 'var(--tj-surface)',
     border: '1px solid var(--tj-hairline)',
-    borderRadius: 'var(--tj-radius)',
+    borderRadius: 'var(--tj-radius-md)',
     padding: 'var(--tj-space-3) var(--tj-space-4)',
     display: 'grid',
     gap: '6px',
-    boxShadow: '0 1px 2px rgba(26, 27, 18, 0.06)',
+    boxShadow: 'var(--tj-shadow-card)',
   },
-  cashierTotalRow: {
-    display: 'flex',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-  },
+  cashierTotalRow: { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' },
   cashierTotalStrong: {
     borderTop: '1px solid var(--tj-hairline)',
     paddingTop: '8px',
     marginTop: '4px',
   },
   cashierLabel: { fontSize: '13px', fontWeight: 500, color: 'var(--tj-muted)' },
-  cashierValue: { fontSize: '15px', fontWeight: 600, color: 'var(--tj-ink)', fontVariantNumeric: 'tabular-nums' },
+  cashierValue: { fontSize: '15px', fontWeight: 600, color: 'var(--tj-ink)' },
   cashierTotalLabel: { fontSize: '15px', fontWeight: 600, color: 'var(--tj-body)' },
   cashierTotalAmount: {
     fontSize: '24px',
     fontWeight: 700,
     color: 'var(--tj-ink)',
-    fontVariantNumeric: 'tabular-nums',
-    fontFamily: 'var(--tj-font-display)',
+    letterSpacing: '-0.3px',
   },
   cashierForm: {
     background: 'var(--tj-surface)',
     border: '1px solid var(--tj-hairline)',
-    borderRadius: 'var(--tj-radius)',
+    borderRadius: 'var(--tj-radius-md)',
     padding: 'var(--tj-space-4)',
     display: 'grid',
     gap: 'var(--tj-space-3)',
-    boxShadow: '0 1px 2px rgba(26, 27, 18, 0.06)',
+    boxShadow: 'var(--tj-shadow-card)',
   },
-  cashierFormDanger: {
-    borderColor: 'var(--tj-danger-text)',
-  },
-  cashierFormTitle: {
-    fontSize: '15px',
-    fontWeight: 600,
-    color: 'var(--tj-body)',
-  },
-  discountTypeSeg: {
-    display: 'inline-flex',
-    gap: '4px',
-  },
-  segBtn: {
-    flex: '1 1 auto',
-    minHeight: '40px',
-    padding: '0 var(--tj-space-3)',
-    fontFamily: 'var(--tj-font-ui)',
-    fontSize: '14px',
-    fontWeight: 600,
-    color: 'var(--tj-body)',
-    background: 'var(--tj-canvas-soft)',
-    border: '1px solid var(--tj-hairline)',
-    borderRadius: 'var(--tj-radius-pill)',
-    cursor: 'pointer',
-    transition: 'background 120ms ease, color 120ms ease, border-color 120ms ease',
-  },
-  segBtnOn: {
-    color: 'var(--tj-cta-contrast)',
-    background: 'var(--tj-cta)',
-    border: '1px solid var(--tj-cta)',
-  },
-  formActions: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1.5fr',
-    gap: 'var(--tj-space-3)',
-  },
+  cashierFormDanger: { borderColor: 'var(--tj-danger-text)' },
+  cashierFormTitle: { fontSize: '15px', fontWeight: 600, color: 'var(--tj-body)' },
+  formActions: { display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: 'var(--tj-space-3)' },
   cashierActions: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
     gap: 'var(--tj-space-2)',
-  },
-  ghostDanger: {
-    minHeight: '48px',
-    padding: '0 var(--tj-space-4)',
-    fontFamily: 'var(--tj-font-ui)',
-    fontSize: '15px',
-    fontWeight: 600,
-    color: 'var(--tj-danger-text)',
-    background: 'transparent',
-    border: '1px solid var(--tj-danger-text)',
-    borderRadius: 'var(--tj-radius-pill)',
-    cursor: 'pointer',
-    transition: 'transform 80ms ease, opacity 120ms ease',
-  },
-  ctaDanger: {
-    minHeight: '48px',
-    padding: '0 var(--tj-space-4)',
-    fontFamily: 'var(--tj-font-ui)',
-    fontSize: '15px',
-    fontWeight: 600,
-    color: 'var(--tj-cta-contrast)',
-    background: 'var(--tj-danger-text)',
-    border: 'none',
-    borderRadius: 'var(--tj-radius-pill)',
-    cursor: 'pointer',
-    transition: 'transform 80ms ease, opacity 120ms ease',
   },
 
   // Confirmação
@@ -1238,29 +978,16 @@ const styles: Record<string, CSSProperties> = {
     gap: 'var(--tj-space-3)',
     background: 'var(--tj-surface)',
     border: '1px solid var(--tj-hairline)',
-    borderRadius: 'var(--tj-radius)',
+    borderRadius: 'var(--tj-radius-md)',
     padding: 'var(--tj-space-5)',
-    boxShadow: '0 1px 2px rgba(26, 27, 18, 0.06)',
+    boxShadow: 'var(--tj-shadow-card)',
   },
-  confirmBadge: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '7px',
-    width: 'fit-content',
-    fontSize: '13px',
-    fontWeight: 600,
-    padding: '4px 12px 4px 10px',
-    borderRadius: 'var(--tj-radius-pill)',
-    color: 'var(--tj-cta)',
-    background: 'var(--tj-pale)',
-  },
-  confirmDot: { width: '8px', height: '8px', borderRadius: '9999px', background: 'var(--tj-olive)' },
   confirmTitle: {
     margin: 0,
-    fontFamily: 'var(--tj-font-display)',
-    fontWeight: 600,
+    fontFamily: 'var(--tj-font-ui)',
+    fontWeight: 700,
     fontSize: '28px',
-    letterSpacing: '-0.3px',
+    letterSpacing: '-0.5px',
     color: 'var(--tj-ink)',
   },
   confirmCount: { margin: 0, fontSize: '14px', color: 'var(--tj-muted)' },
@@ -1272,35 +999,12 @@ const styles: Record<string, CSSProperties> = {
     borderTop: '1px solid var(--tj-hairline)',
     borderBottom: '1px solid var(--tj-hairline)',
   },
-  confirmTotal: {
-    fontSize: '30px',
-    fontWeight: 700,
-    color: 'var(--tj-ink)',
-    fontVariantNumeric: 'tabular-nums',
-  },
+  confirmTotal: { fontSize: '30px', fontWeight: 700, color: 'var(--tj-ink)', letterSpacing: '-0.3px' },
   confirmActions: { display: 'grid', gap: 'var(--tj-space-2)', marginTop: 'var(--tj-space-2)' },
 };
 
 const scopedCss = `
-.tj-input:focus-visible {
-  border-color: var(--tj-olive);
-  box-shadow: 0 0 0 3px var(--tj-pale);
-}
-.tj-input::placeholder { color: var(--tj-faint); }
-.tj-press:focus-visible {
-  outline: 3px solid var(--tj-pale);
-  outline-offset: 2px;
-}
-.tj-press:not(:disabled):active { transform: scale(0.97); }
-.tj-card:not(:disabled):hover {
-  border-color: var(--tj-hairline-strong);
-  box-shadow: 0 2px 8px rgba(26, 27, 18, 0.08);
-}
 @media (min-width: 760px) {
   .tj-order-grid { grid-template-columns: 1fr 360px; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .tj-input, .tj-press, .tj-card { transition: none; }
-  .tj-press:not(:disabled):active { transform: none; }
 }
 `;
