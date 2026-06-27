@@ -62,7 +62,7 @@ const base: CSSProperties = {
 
 const variants: Record<Variant, CSSProperties> = {
   primary: {
-    color: 'var(--tj-on-dark)',
+    color: 'var(--tj-cta-contrast)',
     background: 'var(--tj-brand-deep)',
   },
   secondary: {
@@ -77,7 +77,7 @@ const variants: Record<Variant, CSSProperties> = {
   },
   danger: {
     color: 'var(--tj-on-dark)',
-    background: 'var(--tj-danger-text)',
+    background: 'var(--tj-danger-solid)',
   },
   'danger-ghost': {
     color: 'var(--tj-danger-text)',

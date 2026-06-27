@@ -2,7 +2,7 @@ import { useId, useState } from 'react';
 import type { CSSProperties, FormEvent } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { ApiError } from '../lib/api';
-import { Alert, Button, Card, TextField } from '../shared/ui';
+import { Alert, Button, Card, TextField, ThemeToggle } from '../shared/ui';
 
 /**
  * Tela de login do PDV (garçom no celular / caixa no PC, na LAN). Primeira
@@ -46,6 +46,9 @@ export function Login(): React.JSX.Element {
 
   return (
     <main style={styles.canvas}>
+      <div style={styles.themeCorner}>
+        <ThemeToggle />
+      </div>
       <Card style={styles.card} aria-labelledby="tj-login-title">
         <header style={styles.brand}>
           <h1 id="tj-login-title" style={styles.wordmark}>
@@ -98,11 +101,17 @@ export function Login(): React.JSX.Element {
 
 const styles: Record<string, CSSProperties> = {
   canvas: {
+    position: 'relative',
     minHeight: '100vh',
     display: 'grid',
     placeItems: 'center',
     padding: 'var(--tj-space-4)',
     background: 'var(--tj-canvas)',
+  },
+  themeCorner: {
+    position: 'absolute',
+    top: 'var(--tj-space-4)',
+    right: 'var(--tj-space-4)',
   },
   card: {
     width: '100%',

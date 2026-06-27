@@ -1,8 +1,10 @@
 import type { CSSProperties, ReactNode } from 'react';
+import { ThemeToggle } from './ThemeToggle';
 
 /**
- * Cabeçalho de tela com voltar + título. Barra surface + hairline (mesma do topbar do
- * Home). `sticky` gruda no topo (telas longas: pedido, pagamento). Botão voltar ≥44px.
+ * Cabeçalho de tela com voltar + título + alternador de tema. Barra surface + hairline
+ * (mesma do topbar do Home). `sticky` gruda no topo (telas longas: pedido, pagamento).
+ * Botão voltar ≥44px.
  */
 interface ScreenHeaderProps {
   onBack: () => void;
@@ -33,8 +35,11 @@ export function ScreenHeader({
         </span>
         {backLabel}
       </button>
-      {title ? <span style={titleStyle}>{title}</span> : null}
-      {eyebrow ? <span style={eyebrowStyle}>{eyebrow}</span> : null}
+      <div style={rightGroup}>
+        {title ? <span style={titleStyle}>{title}</span> : null}
+        {eyebrow ? <span style={eyebrowStyle}>{eyebrow}</span> : null}
+        <ThemeToggle />
+      </div>
     </header>
   );
 }
@@ -50,6 +55,12 @@ const bar: CSSProperties = {
 };
 
 const stickyStyle: CSSProperties = { position: 'sticky', top: 0, zIndex: 5 };
+
+const rightGroup: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'var(--tj-space-3)',
+};
 
 const backBtn: CSSProperties = {
   display: 'inline-flex',

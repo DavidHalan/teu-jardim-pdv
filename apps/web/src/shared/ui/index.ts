@@ -10,3 +10,4 @@ export { StatusPill } from './StatusPill';
 export { Segmented } from './Segmented';
 export { ScreenHeader } from './ScreenHeader';
 export { ComandaTile } from './ComandaTile';
+export { ThemeToggle } from './ThemeToggle';

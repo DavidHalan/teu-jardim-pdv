@@ -721,7 +721,7 @@ const styles: Record<string, CSSProperties> = {
     transition: 'background 120ms ease, color 120ms ease, border-color 120ms ease',
   },
   tabOn: {
-    color: 'var(--tj-on-dark)',
+    color: 'var(--tj-cta-contrast)',
     background: 'var(--tj-brand-deep)',
     border: '1px solid var(--tj-brand-deep)',
   },

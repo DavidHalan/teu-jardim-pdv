@@ -8,7 +8,7 @@ import { useShift } from '../shift/useShift';
 import { shiftApi } from '../shift/shift-api';
 import { formatBRL } from '../lib/money';
 import { ApiError } from '../lib/api';
-import { Alert, Button, Card, StatusPill, TextField } from '../shared/ui';
+import { Alert, Button, Card, StatusPill, TextField, ThemeToggle } from '../shared/ui';
 
 /**
  * Tela operacional pós-login do PDV. Máquina de estado do turno: sem operação →
@@ -129,6 +129,7 @@ function Topbar({
           <span style={styles.userName}>{userName}</span>
           {role ? <span style={styles.roleChip}>{ROLE_LABEL[role]}</span> : null}
         </span>
+        <ThemeToggle />
         <Button variant="secondary" onClick={onLogout} style={styles.compactBtn}>
           Sair
         </Button>

@@ -41,8 +41,9 @@
   --tj-pending:      oklch(0.634 0.0205 113.6); /* #8A8C7E */
   --tj-pending-text: oklch(0.441 0.0162 116.3); /* #52544A */
   --tj-pending-pale: oklch(0.944 0.0093 106.6); /* #EDEDE6 */
-  --tj-danger:       oklch(0.571 0.1680 33.0);  /* #C7472E */
-  --tj-danger-text:  oklch(0.481 0.1320 34.0);  /* #9A3B26 */
+  --tj-danger:       oklch(0.571 0.1680 33.0);  /* #C7472E — dot/acento */
+  --tj-danger-solid: oklch(0.470 0.1650 32.0);  /* fill de botão destrutivo (texto claro, AA nos 2 temas) */
+  --tj-danger-text:  oklch(0.481 0.1320 34.0);  /* #9A3B26 — texto/borda */
   --tj-danger-pale:  oklch(0.907 0.0315 40.1);  /* #F4DAD1 */
   --tj-info:         oklch(0.518 0.0730 239.5); /* #3E6E8E */
   --tj-info-text:    oklch(0.440 0.0627 234.5); /* #2C5870 */
@@ -114,4 +115,46 @@
 
   /* ── Movimento ────────────────────────────────────────────────────────── */
   --tj-ease-out: cubic-bezier(0.22, 1, 0.36, 1); /* ease-out-quint */
+}
+
+/*
+ * Tema escuro (decisão do dono 2026-06-26: app passa a ter claro + escuro, claro=padrão,
+ * preferência persiste). Aplicado via [data-theme="dark"] no <html> (no-flash em index.html).
+ * Só sobrescreve VALORES dos tokens semânticos → telas/primitives tematizam sem mudar código.
+ * Família neutra warm-olive (forest), texto warm near-white. Pares cor/fundo preservam AA nos 2 temas.
+ */
+:root[data-theme='dark'] {
+  /* superfície (forest escuro warm) */
+  --tj-canvas:          oklch(0.205 0.012 122);
+  --tj-canvas-soft:     oklch(0.245 0.014 122);
+  --tj-surface:         oklch(0.258 0.015 122);
+  --tj-hairline:        oklch(0.335 0.016 120);
+  --tj-hairline-strong: oklch(0.430 0.018 118);
+
+  /* tinta (warm near-white → faint) */
+  --tj-ink:   oklch(0.945 0.012 105);
+  --tj-body:  oklch(0.822 0.016 110);
+  --tj-muted: oklch(0.668 0.020 113);
+  --tj-faint: oklch(0.530 0.020 115);
+
+  /* marca — no escuro o "deep" vira oliva CLARO (serve a texto E a fill com texto escuro);
+     cta-contrast passa a escuro (texto sobre o fill oliva-claro). on-dark segue claro. */
+  --tj-brand:        oklch(0.720 0.085 117);
+  --tj-brand-mid:    oklch(0.620 0.075 118);
+  --tj-brand-deep:   oklch(0.760 0.090 119);
+  --tj-brand-pale:   oklch(0.320 0.050 121);
+  --tj-cta-contrast: oklch(0.205 0.018 122);
+
+  /* status — fills viram tints escuros, textos clareiam (AA sobre os tints) */
+  --tj-ready-text:   oklch(0.825 0.130 151); --tj-ready-pale:   oklch(0.330 0.066 152);
+  --tj-cooking-text: oklch(0.830 0.120 75);  --tj-cooking-pale: oklch(0.335 0.060 67);
+  --tj-pending-text: oklch(0.780 0.015 112); --tj-pending-pale: oklch(0.320 0.012 116);
+  --tj-danger-text:  oklch(0.800 0.130 33);  --tj-danger-pale:  oklch(0.335 0.075 33);
+  --tj-info-text:    oklch(0.820 0.090 232); --tj-info-pale:    oklch(0.330 0.052 235);
+  --tj-danger:       oklch(0.620 0.170 33);
+
+  /* elevação no escuro: sombra mais densa (hairline carrega o resto) */
+  --tj-shadow-card:  0 1px 2px oklch(0 0 0 / 0.40);
+  --tj-shadow-pop:   0 -8px 32px oklch(0 0 0 / 0.55);
+  --tj-shadow-hover: 0 2px 8px oklch(0 0 0 / 0.45);
 }
