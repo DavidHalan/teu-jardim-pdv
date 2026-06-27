@@ -63,6 +63,10 @@
   --tj-cta-contrast: var(--tj-on-dark);
   --tj-pale:         var(--tj-brand-pale);
 
+  /* foco de teclado — forte nos 2 temas (brand-deep: ~5:1 no claro, ~7:1 no escuro,
+     sobre surface e canvas). Substitui o halo brand-pale, que sumia (1.2–1.4:1). */
+  --tj-focus:        var(--tj-brand-deep);
+
   /* ── Tipografia ───────────────────────────────────────────────────────── */
   /* Inter em tudo (decisão do dono 2026-06-25): sem serifa de display. Hierarquia
      por peso + tamanho. --tj-font-display fica como alias de transição (telas ainda
@@ -129,13 +133,13 @@
   --tj-canvas-soft:     oklch(0.245 0.014 122);
   --tj-surface:         oklch(0.258 0.015 122);
   --tj-hairline:        oklch(0.335 0.016 120);
-  --tj-hairline-strong: oklch(0.430 0.018 118);
+  --tj-hairline-strong: oklch(0.560 0.022 118); /* ≥3:1 vs surface — borda de controle visível no escuro */
 
   /* tinta (warm near-white → faint) */
   --tj-ink:   oklch(0.945 0.012 105);
   --tj-body:  oklch(0.822 0.016 110);
   --tj-muted: oklch(0.668 0.020 113);
-  --tj-faint: oklch(0.530 0.020 115);
+  --tj-faint: oklch(0.620 0.020 115); /* nº de comanda livre é conteúdo — ≥3:1 vs surface no escuro */
 
   /* marca — no escuro o "deep" vira oliva CLARO (serve a texto E a fill com texto escuro);
      cta-contrast passa a escuro (texto sobre o fill oliva-claro). on-dark segue claro. */
