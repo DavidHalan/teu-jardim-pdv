@@ -105,7 +105,7 @@ export function PayScreen(): React.JSX.Element {
               </span>
             </div>
             <div style={styles.doneActions}>
-              <Button variant="secondary" fullWidth onClick={() => navigate('/lancar')}>
+              <Button variant="secondary" fullWidth onClick={() => navigate('/')}>
                 Nova conta
               </Button>
               <Button fullWidth onClick={() => navigate('/')}>

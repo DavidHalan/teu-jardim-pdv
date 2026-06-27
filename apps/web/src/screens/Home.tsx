@@ -1,6 +1,5 @@
 import { useEffect, useId, useMemo, useState } from 'react';
 import type { CSSProperties, FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Role } from '@teu-jardim/shared';
 import type { RegisterCloseSummary, RegisterClosedDto } from '@teu-jardim/shared';
 import { useAuth } from '../auth/AuthContext';
@@ -9,6 +8,7 @@ import { shiftApi } from '../shift/shift-api';
 import { formatBRL } from '../lib/money';
 import { ApiError } from '../lib/api';
 import { Alert, Button, Card, StatusPill, TextField, ThemeToggle } from '../shared/ui';
+import { AccountBoard } from './AccountBoard';
 
 /**
  * Tela operacional pós-login do PDV. Máquina de estado do turno: sem operação →
@@ -273,62 +273,47 @@ function Dashboard({
   register: { openingAmount: string; openedAt: string };
   refresh: () => Promise<void>;
 }): React.JSX.Element {
-  const navigate = useNavigate();
   // Só um painel de fechamento aberto por vez. Caixa e operação fecham daqui (RB-011/007).
   const [panel, setPanel] = useState<'none' | 'register' | 'operation'>('none');
 
   return (
-    <section style={styles.dashboard} aria-label="Turno em andamento">
-      <div style={styles.dashHead}>
-        <StatusPill label="Turno aberto" />
-        <h1 style={styles.dashTitle}>Atendimento em andamento</h1>
-      </div>
-
-      <div style={styles.panel}>
-        <div style={styles.infoBlock}>
-          <p style={styles.infoLabel}>Operação</p>
-          <p style={styles.infoValue}>{session.name}</p>
-          <p style={styles.infoMeta}>Aberta às {formatTime(session.openedAt)}</p>
+    <section style={styles.dashboard} aria-label="Atendimento">
+      <div style={styles.turnoBar}>
+        <div style={styles.turnoInfo}>
+          <StatusPill label="Turno aberto" />
+          <span style={styles.turnoMeta}>
+            {session.name} · Caixa{' '}
+            <span className="tj-tnum">{formatBRL(register.openingAmount)}</span> · desde{' '}
+            {formatTime(register.openedAt)}
+          </span>
         </div>
-        <div style={styles.panelDivider} aria-hidden="true" />
-        <div style={styles.infoBlock}>
-          <p style={styles.infoLabel}>Caixa</p>
-          <p style={styles.infoValueNum} className="tj-tnum">
-            {formatBRL(register.openingAmount)}
-          </p>
-          <p style={styles.infoMeta}>Valor inicial · aberto às {formatTime(register.openedAt)}</p>
+        <div style={styles.turnoActions}>
+          <Button
+            variant="secondary"
+            style={styles.compactBtn}
+            onClick={() => setPanel((p) => (p === 'register' ? 'none' : 'register'))}
+            aria-expanded={panel === 'register'}
+          >
+            Fechar caixa
+          </Button>
+          <Button
+            variant="secondary"
+            style={styles.compactBtn}
+            onClick={() => setPanel((p) => (p === 'operation' ? 'none' : 'operation'))}
+            aria-expanded={panel === 'operation'}
+          >
+            Encerrar operação
+          </Button>
         </div>
-      </div>
-
-      <Button onClick={() => navigate('/lancar')} fullWidth>
-        Lançar pedido
-      </Button>
-
-      <div style={styles.closeActions}>
-        <Button
-          variant="secondary"
-          fullWidth
-          onClick={() => setPanel((p) => (p === 'register' ? 'none' : 'register'))}
-          aria-expanded={panel === 'register'}
-        >
-          Fechar caixa
-        </Button>
-        <Button
-          variant="secondary"
-          fullWidth
-          onClick={() => setPanel((p) => (p === 'operation' ? 'none' : 'operation'))}
-          aria-expanded={panel === 'operation'}
-        >
-          Encerrar operação
-        </Button>
       </div>
 
       {panel === 'register' ? (
         <CloseRegisterPanel refresh={refresh} onDone={() => setPanel('none')} />
-      ) : null}
-      {panel === 'operation' ? (
+      ) : panel === 'operation' ? (
         <EndOperationPanel refresh={refresh} onCancel={() => setPanel('none')} />
-      ) : null}
+      ) : (
+        <AccountBoard />
+      )}
     </section>
   );
 }
@@ -546,20 +531,16 @@ function SummaryRow({ label, value }: { label: string; value: string }): React.J
 }
 
 function EmployeeLaunch({ sessionName }: { sessionName: string }): React.JSX.Element {
-  const navigate = useNavigate();
   return (
-    <Centered>
-      <Card style={styles.card}>
-        <StatusPill label="Operação aberta" />
-        <h1 style={{ ...styles.cardTitle, marginTop: 'var(--tj-space-3)' }}>Pronto para lançar</h1>
-        <p style={styles.cardHelp}>
-          A operação "{sessionName}" está aberta. Informe a conta e comece o pedido.
-        </p>
-        <Button onClick={() => navigate('/lancar')} fullWidth>
-          Lançar pedido
-        </Button>
-      </Card>
-    </Centered>
+    <section style={styles.dashboard} aria-label="Atendimento">
+      <div style={styles.turnoBar}>
+        <div style={styles.turnoInfo}>
+          <StatusPill label="Operação aberta" />
+          <span style={styles.turnoMeta}>{sessionName}</span>
+        </div>
+      </div>
+      <AccountBoard />
+    </section>
   );
 }
 
@@ -719,28 +700,16 @@ const styles: Record<string, CSSProperties> = {
   form: { display: 'grid', gap: 'var(--tj-space-3)' },
 
   dashboard: { display: 'grid', gap: 'var(--tj-space-4)' },
-  dashHead: { display: 'grid', gap: 'var(--tj-space-2)', justifyItems: 'start' },
-  dashTitle: {
-    margin: 0,
-    fontFamily: 'var(--tj-font-ui)',
-    fontWeight: 700,
-    fontSize: '30px',
-    lineHeight: 1.1,
-    letterSpacing: '-0.6px',
-    color: 'var(--tj-ink)',
-  },
-  panel: {
+  turnoBar: {
     display: 'flex',
     flexWrap: 'wrap',
-    gap: 'var(--tj-space-5)',
-    background: 'var(--tj-surface)',
-    border: '1px solid var(--tj-hairline)',
-    borderRadius: 'var(--tj-radius-md)',
-    padding: 'var(--tj-space-5)',
-    boxShadow: 'var(--tj-shadow-card)',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 'var(--tj-space-3)',
   },
-  infoBlock: { display: 'grid', gap: '6px', minWidth: '200px', flex: '1 1 200px' },
-  panelDivider: { width: '1px', alignSelf: 'stretch', background: 'var(--tj-hairline)' },
+  turnoInfo: { display: 'flex', alignItems: 'center', gap: 'var(--tj-space-3)', flexWrap: 'wrap' },
+  turnoMeta: { fontSize: '14px', color: 'var(--tj-muted)' },
+  turnoActions: { display: 'flex', gap: 'var(--tj-space-2)', flexWrap: 'wrap' },
   infoLabel: {
     margin: 0,
     fontSize: '12px',
@@ -749,21 +718,6 @@ const styles: Record<string, CSSProperties> = {
     textTransform: 'uppercase',
     color: 'var(--tj-muted)',
   },
-  infoValue: {
-    margin: 0,
-    fontFamily: 'var(--tj-font-ui)',
-    fontWeight: 700,
-    fontSize: '24px',
-    letterSpacing: '-0.3px',
-    color: 'var(--tj-ink)',
-  },
-  infoValueNum: {
-    margin: 0,
-    fontSize: '26px',
-    fontWeight: 700,
-    color: 'var(--tj-ink)',
-  },
-  infoMeta: { margin: 0, fontSize: '13px', color: 'var(--tj-muted)' },
 
   closeActions: { display: 'grid', gap: 'var(--tj-space-2)', marginTop: 'var(--tj-space-2)' },
   summaryGrid: { margin: '0 0 var(--tj-space-3)', display: 'grid', gap: 'var(--tj-space-2)' },

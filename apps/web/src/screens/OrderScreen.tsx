@@ -622,7 +622,7 @@ function Confirmation({
             </span>
           </div>
           <div style={styles.confirmActions}>
-            <Button variant="secondary" fullWidth onClick={() => navigate('/lancar')}>
+            <Button variant="secondary" fullWidth onClick={() => navigate('/')}>
               Lançar em outra conta
             </Button>
             <Button fullWidth onClick={() => navigate('/')}>
