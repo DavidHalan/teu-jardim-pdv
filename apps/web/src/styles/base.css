@@ -46,6 +46,17 @@ button {
 /* ── Camada interativa compartilhada ──────────────────────────────────────── */
 
 .tj-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 46px;
+  padding: 0 var(--tj-space-3);
+  font-family: var(--tj-font-ui);
+  font-size: var(--tj-fs-body);
+  color: var(--tj-ink);
+  background: var(--tj-surface);
+  border: 1px solid var(--tj-hairline);
+  border-radius: var(--tj-radius-input);
+  outline: none;
   transition: border-color 120ms ease, box-shadow 120ms ease;
 }
 .tj-input:focus-visible {

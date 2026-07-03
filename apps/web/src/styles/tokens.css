@@ -21,13 +21,13 @@
   --tj-canvas-soft:     oklch(0.935 0.0174 99.6); /* #ECEADD — zonas / separadores */
   --tj-surface:         oklch(0.987 0.0067 97.3); /* #FCFBF6 — cartão / input / tile */
   --tj-hairline:        oklch(0.905 0.0190 96.9); /* #E3E0D2 — borda 1px / divisor padrão */
-  --tj-hairline-strong: oklch(0.840 0.0262 97.2); /* #CFCBB8 — borda hover / ênfase */
+  --tj-hairline-strong: oklch(0.640 0.0320 97.2); /* borda de controle ≥3:1 vs surface (a11y 1.4.11) */
 
   /* ── Tinta ────────────────────────────────────────────────────────────── */
   --tj-ink:           oklch(0.218 0.0169 113.0); /* #1A1B12 — títulos / texto primário */
   --tj-body:          oklch(0.391 0.0216 118.0); /* #44473A — corpo */
   --tj-muted:         oklch(0.545 0.0230 116.4); /* #6F7263 — secundário / metadado */
-  --tj-faint:         oklch(0.687 0.0202 113.5); /* #9A9C8E — placeholder / caption / nº livre */
+  --tj-faint:         oklch(0.585 0.0210 113.5); /* placeholder / caption / nº livre — ≥3:1 vs surface */
   --tj-on-dark:       oklch(0.960 0.0134 97.4);  /* #F4F2E8 — texto sobre forest/brand-deep */
   --tj-on-dark-muted: oklch(0.741 0.0533 117.4); /* #A8B08A — secundário sobre superfície escura */
 
@@ -116,6 +116,7 @@
   --tj-shadow-card: 0 1px 2px oklch(0.218 0.0169 113 / 0.06);
   --tj-shadow-pop:  0 -8px 32px oklch(0.218 0.0169 113 / 0.18);
   --tj-shadow-hover: 0 2px 8px oklch(0.218 0.0169 113 / 0.08);
+  --tj-scrim: oklch(0.218 0.0169 113 / 0.40); /* backdrop de modal/sheet */
 
   /* ── Movimento ────────────────────────────────────────────────────────── */
   --tj-ease-out: cubic-bezier(0.22, 1, 0.36, 1); /* ease-out-quint */
@@ -128,10 +129,10 @@
  * Família neutra warm-olive (forest), texto warm near-white. Pares cor/fundo preservam AA nos 2 temas.
  */
 :root[data-theme='dark'] {
-  /* superfície (forest escuro warm) */
-  --tj-canvas:          oklch(0.205 0.012 122);
-  --tj-canvas-soft:     oklch(0.245 0.014 122);
-  --tj-surface:         oklch(0.258 0.015 122);
+  /* superfície (forest escuro warm) — canvas mais fundo p/ cartão (surface) separar melhor */
+  --tj-canvas:          oklch(0.185 0.012 122);
+  --tj-canvas-soft:     oklch(0.235 0.014 122);
+  --tj-surface:         oklch(0.262 0.015 122);
   --tj-hairline:        oklch(0.335 0.016 120);
   --tj-hairline-strong: oklch(0.560 0.022 118); /* ≥3:1 vs surface — borda de controle visível no escuro */
 
@@ -161,4 +162,5 @@
   --tj-shadow-card:  0 1px 2px oklch(0 0 0 / 0.40);
   --tj-shadow-pop:   0 -8px 32px oklch(0 0 0 / 0.55);
   --tj-shadow-hover: 0 2px 8px oklch(0 0 0 / 0.45);
+  --tj-scrim: oklch(0 0 0 / 0.62); /* backdrop mais opaco no escuro (canvas já é escuro) */
 }

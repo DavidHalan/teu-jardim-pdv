@@ -127,8 +127,8 @@ export function AccountBoard(): React.JSX.Element {
               onChange={(e) => setQuery(e.target.value.replace(/\D/g, ''))}
               placeholder={`Nº da ${tab === TabType.TABLE ? 'mesa' : tab === TabType.WRISTBAND ? 'pulseira' : 'comanda'}`}
               aria-label="Buscar número"
-              style={styles.search}
-              className="tj-input"
+              style={{ paddingLeft: '40px' }}
+              className="tj-input tj-tnum"
             />
           </div>
           <Segmented
@@ -219,20 +219,6 @@ const styles: Record<string, CSSProperties> = {
     fontSize: '18px',
     color: 'var(--tj-muted)',
     pointerEvents: 'none',
-  },
-  search: {
-    boxSizing: 'border-box',
-    width: '100%',
-    minHeight: '46px',
-    padding: '0 var(--tj-space-3) 0 40px',
-    fontFamily: 'var(--tj-font-ui)',
-    fontSize: 'var(--tj-fs-body)',
-    color: 'var(--tj-ink)',
-    background: 'var(--tj-surface)',
-    border: '1px solid var(--tj-hairline)',
-    borderRadius: 'var(--tj-radius-input)',
-    outline: 'none',
-    fontVariantNumeric: 'tabular-nums',
   },
   grid: {
     display: 'grid',

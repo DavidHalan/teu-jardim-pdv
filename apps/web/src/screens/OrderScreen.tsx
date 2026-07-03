@@ -823,7 +823,7 @@ const styles: Record<string, CSSProperties> = {
     display: 'flex',
     alignItems: 'flex-end',
     justifyContent: 'center',
-    background: 'oklch(0.218 0.0169 113 / 0.32)',
+    background: 'var(--tj-scrim)',
   },
   sheet: {
     boxSizing: 'border-box',

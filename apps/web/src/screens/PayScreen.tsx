@@ -215,7 +215,6 @@ export function PayScreen(): React.JSX.Element {
                     onChange={(e) => setRowAmount(idx, e.target.value)}
                     placeholder="0,00"
                     aria-label="Valor"
-                    style={styles.input}
                     className="tj-input tj-tnum"
                   />
                   {rows.length > 1 ? (
@@ -348,19 +347,6 @@ const styles: Record<string, CSSProperties> = {
     gridTemplateColumns: '1fr auto',
     gap: 'var(--tj-space-2)',
     alignItems: 'center',
-  },
-  input: {
-    boxSizing: 'border-box',
-    width: '100%',
-    minHeight: '46px',
-    padding: '0 var(--tj-space-3)',
-    fontFamily: 'var(--tj-font-ui)',
-    fontSize: '16px',
-    color: 'var(--tj-ink)',
-    background: 'var(--tj-surface)',
-    border: '1px solid var(--tj-hairline)',
-    borderRadius: 'var(--tj-radius-input)',
-    outline: 'none',
   },
   removeBtn: {
     width: '44px',

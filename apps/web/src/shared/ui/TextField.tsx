@@ -32,7 +32,7 @@ export function TextField({
           <input
             id={id}
             className={['tj-input', className].filter(Boolean).join(' ')}
-            style={{ ...inputStyle, ...withPrefix, ...style }}
+            style={{ ...withPrefix, ...style }}
             {...rest}
           />
         </div>
@@ -40,7 +40,7 @@ export function TextField({
         <input
           id={id}
           className={['tj-input', className].filter(Boolean).join(' ')}
-          style={{ ...inputStyle, ...style }}
+          style={style}
           {...rest}
         />
       )}
@@ -54,20 +54,6 @@ const labelStyle: CSSProperties = {
   fontSize: 'var(--tj-fs-body-sm)',
   fontWeight: 500,
   color: 'var(--tj-body)',
-};
-
-const inputStyle: CSSProperties = {
-  boxSizing: 'border-box',
-  width: '100%',
-  minHeight: '46px',
-  padding: '0 var(--tj-space-3)',
-  fontFamily: 'var(--tj-font-ui)',
-  fontSize: 'var(--tj-fs-body)',
-  color: 'var(--tj-ink)',
-  background: 'var(--tj-surface)',
-  border: '1px solid var(--tj-hairline)',
-  borderRadius: 'var(--tj-radius-input)',
-  outline: 'none',
 };
 
 const prefixWrap: CSSProperties = { position: 'relative', display: 'flex', alignItems: 'center' };
