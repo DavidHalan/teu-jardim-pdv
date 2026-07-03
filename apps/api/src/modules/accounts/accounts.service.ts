@@ -16,7 +16,7 @@ import type {
   AccountSummaryDto,
   PlaceItemInput,
 } from '@teu-jardim/shared';
-import { Prisma } from '../../generated/prisma/client';
+import { Prisma } from '../../prisma/client';
 
 // Releitura padrão da conta com itens (não cancelados), produto e observações.
 const accountInclude = {

@@ -4,8 +4,8 @@ import { AuditService } from '../audit/audit.service';
 import { BusinessSessionsService } from '../business-sessions/business-sessions.service';
 import { OpenClosedStatus } from '@teu-jardim/shared';
 import type { RegisterDto, RegisterCloseSummary, RegisterClosedDto } from '@teu-jardim/shared';
-import type { Register as RegisterRow } from '../../generated/prisma/client';
-import { Prisma } from '../../generated/prisma/client';
+import type { Register as RegisterRow } from '../../prisma/client';
+import { Prisma } from '../../prisma/client';
 import { expectedCash, cashDifference } from './register-math';
 
 function toDto(r: RegisterRow): RegisterDto {

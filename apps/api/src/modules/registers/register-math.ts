@@ -1,4 +1,4 @@
-import { Prisma } from '../../generated/prisma/client';
+import { Prisma } from '../../prisma/client';
 
 /** Esperado na gaveta = abertura + recebimentos em dinheiro (sangria/suprimento = fase futura). */
 export function expectedCash(opening: Prisma.Decimal, cashReceipts: Prisma.Decimal): Prisma.Decimal {

@@ -85,7 +85,6 @@ async function main(): Promise<void> {
     });
   }
 
-  // eslint-disable-next-line no-console
   console.log('[seed] 3 usuários (admin/caixa/garcom, senha 1234) + catálogo (4 categorias, 6 produtos, 5 observações, estação Sucos)');
 }
 

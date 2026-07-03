@@ -68,7 +68,7 @@ describe('RegistersService.getCurrentForOperator', () => {
   });
 });
 
-import { Prisma } from '../../generated/prisma/client';
+import { Prisma } from '../../prisma/client';
 
 // Só os guards (ambos disparam ANTES do tx.register.update, então o mock fica simples).
 // O cálculo esperado/diferença já está coberto pelo register-math (Task 2) e pelo e2e (Task 8).

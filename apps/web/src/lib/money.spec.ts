@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { formatBRL } from './money';
 
 // Normaliza o separador (ICU usa NBSP U+00A0 ou narrow-NBSP U+202F entre "R$" e o número).
-const norm = (s: string): string => s.replace(/[  ]/g, ' ');
+const norm = (s: string): string => s.replace(/[\u00A0\u202F]/g, ' ');
 
 describe('formatBRL', () => {
   it('formats a canonical decimal string as BRL', () => {

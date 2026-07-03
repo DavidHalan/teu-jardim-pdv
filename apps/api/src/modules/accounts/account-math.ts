@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { ProductType } from '@teu-jardim/shared';
-import { Prisma } from '../../generated/prisma/client';
+import { Prisma } from '../../prisma/client';
 
 export interface LineInput {
   type: ProductType;

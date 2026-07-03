@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useSyncExternalStore } from 'reac
 import type { ReactNode } from 'react';
 import type { AuthUser, LoginResponse } from '@teu-jardim/shared';
 import { api } from '../lib/api';
-import { authStore } from './auth-store';
+import { authStore } from '../lib/auth-store';
 
 interface AuthContextValue {
   user: AuthUser | null;

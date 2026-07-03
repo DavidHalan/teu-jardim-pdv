@@ -20,6 +20,7 @@ export function useShift(): ShiftState & { refresh: () => Promise<void> } {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount é o read-snapshot decidido (ADR-0023); TanStack Query assume no retrofit (R-TS3).
     void refresh();
   }, [refresh]);
 

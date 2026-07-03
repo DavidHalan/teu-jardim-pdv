@@ -1,10 +1,10 @@
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { RegistersService } from '../registers/registers.service';
 import { PaymentMethod, PaymentStatus } from '@teu-jardim/shared';
 import type { PaymentDto, PaymentTenderInput } from '@teu-jardim/shared';
-import { Prisma } from '../../generated/prisma/client';
+import { Prisma } from '../../prisma/client';
 import { assertTendersMatchTotal, cashPortion, sumTenders } from './payment-math';
 
 @Injectable()

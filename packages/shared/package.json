@@ -14,7 +14,7 @@
     "build": "tsc -p tsconfig.json",
     "dev": "tsc -p tsconfig.json --watch",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "echo \"(shared) sem lint configurado ainda\"",
+    "lint": "eslint . --max-warnings 0",
     "test": "echo \"(shared) sem testes ainda\""
   },
   "devDependencies": {

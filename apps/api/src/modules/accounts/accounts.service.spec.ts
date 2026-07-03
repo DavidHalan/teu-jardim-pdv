@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { ConflictException } from '@nestjs/common';
-import { Prisma } from '../../generated/prisma/client';
-import { DiscountType } from '@teu-jardim/shared';
+import { Prisma } from '../../prisma/client';
 import { AccountsService } from './accounts.service';
 
 const sessionRow = { id: 's1', status: 'OPEN' };

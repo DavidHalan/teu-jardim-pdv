@@ -3,7 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { OpenClosedStatus } from '@teu-jardim/shared';
 import type { BusinessSessionDto } from '@teu-jardim/shared';
-import type { BusinessSession } from '../../generated/prisma/client';
+import type { BusinessSession } from '../../prisma/client';
 
 function toDto(s: BusinessSession): BusinessSessionDto {
   return {

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { BadRequestException, ConflictException } from '@nestjs/common';
-import { Prisma } from '../../generated/prisma/client';
+import { Prisma } from '../../prisma/client';
 import { PaymentsService } from './payments.service';
 
 const reg = { id: 'r1', businessSessionId: 's1', operatorId: 'u1', status: 'OPEN' };

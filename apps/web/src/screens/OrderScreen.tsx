@@ -428,7 +428,9 @@ function AddPanel({
   // A11y do bottom-sheet (modal): trava o foco, fecha no Esc, devolve o foco ao sair.
   const sheetRef = useRef<HTMLDivElement>(null);
   const onCancelRef = useRef(onCancel);
-  onCancelRef.current = onCancel;
+  useEffect(() => {
+    onCancelRef.current = onCancel;
+  }, [onCancel]);
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     const el = sheetRef.current;

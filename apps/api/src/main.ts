@@ -18,7 +18,6 @@ async function bootstrap(): Promise<void> {
 
   const port = Number(config.get('PORT') ?? 3000);
   await app.listen(port);
-  // eslint-disable-next-line no-console
   console.log(`[api] ouvindo em http://localhost:${port}/api`);
 }
 

@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { DiscountType } from '@teu-jardim/shared';
-import { Prisma } from '../../generated/prisma/client';
+import { Prisma } from '../../prisma/client';
 
 /**
  * discountTotal a partir do subtotal (RB-027/028). PERCENT: subtotal×value/100; FIXED: value.

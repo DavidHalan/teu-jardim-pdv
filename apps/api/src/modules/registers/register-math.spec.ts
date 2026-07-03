@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Prisma } from '../../generated/prisma/client';
+import { Prisma } from '../../prisma/client';
 import { expectedCash, cashDifference } from './register-math';
 
 const d = (v: string) => new Prisma.Decimal(v);

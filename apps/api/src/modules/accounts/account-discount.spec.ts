@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
-import { Prisma } from '../../generated/prisma/client';
+import { Prisma } from '../../prisma/client';
 import { DiscountType } from '@teu-jardim/shared';
 import { computeDiscountTotal } from './account-discount';
 
