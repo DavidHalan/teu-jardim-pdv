@@ -40,11 +40,12 @@ export enum KdsStatus {
   CANCELED = 'CANCELED',
 }
 
-/** Tipo de movimentação de caixa (RB-010). */
+/** Tipo de movimentação de caixa (RB-010/049). */
 export enum CashMovementType {
   SALE_RECEIPT = 'SALE_RECEIPT',
   WITHDRAWAL = 'WITHDRAWAL',
   SUPPLY = 'SUPPLY',
+  PAYMENT_REVERSAL = 'PAYMENT_REVERSAL',
 }
 
 /** Tipo de desconto (RB-027). */
@@ -247,11 +248,12 @@ export interface PlaceItemsRequest {
  * Pagamento / Desconto / Cancelamento / Fechamento (RB-007/011/012/026..039) — S4
  * ------------------------------------------------------------------------- */
 
-/** Status da liquidação (RB-037..039). */
+/** Status da liquidação (RB-037..039, RB-048). */
 export enum PaymentStatus {
   PENDING = 'PENDING',
   SETTLED = 'SETTLED',
   CANCELED = 'CANCELED',
+  REVERSED = 'REVERSED',
 }
 
 /** Aplica desconto na conta (RB-026/027). PERCENT: `value` em % (ex.: "10"); FIXED: R$ (ex.: "5.00"). */
@@ -296,6 +298,33 @@ export interface PaymentDto {
   createdAt: string; // ISO 8601
 }
 
+/** POST /payments/:id/reverse — estorno (RB-048): motivo obrigatório, auditado. */
+export interface ReversePaymentRequest {
+  reason: string;
+}
+
+/** Referência de conta na listagem de pagamentos (reconhecimento visual no caixa). */
+export interface PaymentAccountRef {
+  id: string;
+  tabType: TabType;
+  number: number;
+}
+
+/** Item de GET /payments — pagamentos da operação corrente (base do estorno). */
+export interface PaymentListItemDto {
+  id: string;
+  total: string;
+  status: PaymentStatus;
+  tenders: PaymentTenderDto[];
+  accounts: PaymentAccountRef[];
+  createdAt: string; // ISO 8601
+}
+
+/** GET /payments — mais recente primeiro. */
+export interface PaymentListResponse {
+  payments: PaymentListItemDto[];
+}
+
 /** GET /registers/current/closing-summary — prévia do fechamento (RB-011/052). */
 export interface RegisterCloseSummary {
   registerId: string;
@@ -303,7 +332,8 @@ export interface RegisterCloseSummary {
   cashReceipts: string; // Σ recebimentos em dinheiro (SALE_RECEIPT)
   cashSupplies: string; // Σ suprimentos (RB-052 — soma no esperado)
   cashWithdrawals: string; // Σ sangrias (RB-052 — subtrai do esperado)
-  expectedAmount: string; // abertura + recebimentos + suprimentos − sangrias
+  cashReversals: string; // Σ estornos em dinheiro (RB-049 — subtrai do esperado)
+  expectedAmount: string; // abertura + recebimentos + suprimentos − sangrias − estornos
   openAccountCount: number; // >0 bloqueia o fechamento (RB-012/012a)
 }
 

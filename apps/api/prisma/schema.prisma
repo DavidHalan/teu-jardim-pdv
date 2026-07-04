@@ -51,6 +51,7 @@ enum CashMovementType {
   SALE_RECEIPT
   WITHDRAWAL
   SUPPLY
+  PAYMENT_REVERSAL
 }
 
 enum DiscountType {
@@ -74,6 +75,7 @@ enum PaymentStatus {
   PENDING
   SETTLED
   CANCELED
+  REVERSED
 }
 
 // ----------------------------------------------------------------------------
@@ -268,7 +270,7 @@ model Account {
   openedBy        User                 @relation(fields: [openedById], references: [id])
   items           AccountItem[]
   discounts       Discount[]
-  groupMembership AccountGroupMember?
+  groupMemberships AccountGroupMember[]
   transfersFrom   ItemTransfer[]       @relation("TransferFrom")
   transfersTo     ItemTransfer[]       @relation("TransferTo")
 
@@ -380,13 +382,17 @@ model AccountGroup {
 }
 
 model AccountGroupMember {
-  accountGroupId String @map("account_group_id")
-  accountId      String @unique @map("account_id") // RB-039: conta em ≤1 grupo
+  accountGroupId String    @map("account_group_id")
+  accountId      String    @map("account_id")
+  releasedAt     DateTime? @map("released_at") // estorno libera o vínculo (ADR-0030)
 
   accountGroup AccountGroup @relation(fields: [accountGroupId], references: [id])
   account      Account      @relation(fields: [accountId], references: [id])
 
+  // RB-039: conta em ≤1 grupo ATIVO. Prisma não expressa unique PARCIAL; SQL na migration:
+  //   CREATE UNIQUE INDEX uniq_active_group_member ON account_group_members (account_id) WHERE released_at IS NULL;
   @@id([accountGroupId, accountId])
+  @@index([accountId])
   @@map("account_group_members")
 }
 

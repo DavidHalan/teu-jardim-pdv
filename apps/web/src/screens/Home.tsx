@@ -1,10 +1,18 @@
 import { useEffect, useId, useMemo, useState } from 'react';
 import type { CSSProperties, FormEvent } from 'react';
-import { CashMovementType, Role } from '@teu-jardim/shared';
-import type { CashMovementDto, RegisterCloseSummary, RegisterClosedDto } from '@teu-jardim/shared';
+import { CashMovementType, PaymentStatus, Role } from '@teu-jardim/shared';
+import type {
+  CashMovementDto,
+  PaymentAccountRef,
+  PaymentListItemDto,
+  PaymentTenderDto,
+  RegisterCloseSummary,
+  RegisterClosedDto,
+} from '@teu-jardim/shared';
 import { useAuth } from '../auth/AuthContext';
 import { useShift } from '../shift/useShift';
 import { shiftApi } from '../shift/shift-api';
+import { paymentsApi } from '../payments/payments-api';
 import { formatBRL } from '../lib/money';
 import { ApiError } from '../lib/api';
 import { Alert, Button, Card, Segmented, StatusPill, TextField, ThemeToggle } from '../shared/ui';
@@ -273,9 +281,9 @@ function Dashboard({
   register: { openingAmount: string; openedAt: string };
   refresh: () => Promise<void>;
 }): React.JSX.Element {
-  // Só um painel aberto por vez. Caixa movimenta e fecha daqui (RB-011/052/007).
-  const [panel, setPanel] = useState<'none' | 'cash' | 'register' | 'operation'>('none');
-  const toggle = (p: 'cash' | 'register' | 'operation') =>
+  // Só um painel aberto por vez. Caixa movimenta, estorna e fecha daqui (RB-011/048/052/007).
+  const [panel, setPanel] = useState<'none' | 'cash' | 'payments' | 'register' | 'operation'>('none');
+  const toggle = (p: 'cash' | 'payments' | 'register' | 'operation') =>
     setPanel((cur) => (cur === p ? 'none' : p));
 
   return (
@@ -301,6 +309,14 @@ function Dashboard({
           <Button
             variant="secondary"
             style={styles.compactBtn}
+            onClick={() => toggle('payments')}
+            aria-expanded={panel === 'payments'}
+          >
+            Pagamentos
+          </Button>
+          <Button
+            variant="secondary"
+            style={styles.compactBtn}
             onClick={() => toggle('register')}
             aria-expanded={panel === 'register'}
           >
@@ -319,6 +335,8 @@ function Dashboard({
 
       {panel === 'cash' ? (
         <CashMovementsPanel />
+      ) : panel === 'payments' ? (
+        <PaymentsPanel />
       ) : panel === 'register' ? (
         <CloseRegisterPanel refresh={refresh} onDone={() => setPanel('none')} />
       ) : panel === 'operation' ? (
@@ -473,13 +491,166 @@ function CashMovementsPanel(): React.JSX.Element {
               <span
                 style={{
                   ...styles.cashRowAmount,
-                  ...(m.type === CashMovementType.WITHDRAWAL ? styles.cashRowOut : null),
+                  ...(OUTFLOW.has(m.type) ? styles.cashRowOut : null),
                 }}
                 className="tj-tnum"
               >
-                {m.type === CashMovementType.WITHDRAWAL ? '−' : '+'}
+                {OUTFLOW.has(m.type) ? '−' : '+'}
                 {formatBRL(m.amount)}
               </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+/**
+ * Pagamentos da operação corrente + estorno (RB-048/049/050). Inline (não modal),
+ * confirm-then-display: estorno pede motivo e o resultado só aparece após o servidor
+ * confirmar. Estornar NÃO apaga — o pagamento fica na lista como Estornado.
+ */
+function PaymentsPanel(): React.JSX.Element {
+  const id = useId();
+  const [payments, setPayments] = useState<PaymentListItemDto[] | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
+  const [reversing, setReversing] = useState<string | null>(null); // pagamento com o motivo aberto
+  const [reason, setReason] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+
+  async function load(): Promise<void> {
+    try {
+      const res = await paymentsApi.list();
+      setPayments(res.payments);
+      setListError(null);
+    } catch (err) {
+      setListError(err instanceof ApiError ? err.message : OFFLINE);
+    }
+  }
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount é o read-snapshot decidido (ADR-0023); TanStack Query assume no retrofit (R-TS3).
+    void load();
+  }, []);
+
+  function toggleReverse(paymentId: string): void {
+    setReversing((cur) => (cur === paymentId ? null : paymentId));
+    setReason('');
+    setError(null);
+    setDone(null);
+  }
+
+  function confirmReverse(event: FormEvent<HTMLFormElement>, p: PaymentListItemDto): void {
+    event.preventDefault();
+    if (submitting) return;
+    setError(null);
+    setSubmitting(true);
+    paymentsApi
+      .reverse(p.id, { reason: reason.trim() })
+      .then(async () => {
+        setDone(`Estorno registrado: ${accountsLabel(p.accounts)} de volta ao quadro.`);
+        setReversing(null);
+        setReason('');
+        await load();
+      })
+      .catch((err) =>
+        setError(
+          err instanceof ApiError
+            ? messageFor(err, 'Não foi possível estornar. Tente novamente.')
+            : OFFLINE,
+        ),
+      )
+      .finally(() => setSubmitting(false));
+  }
+
+  return (
+    <Card style={styles.cashCard} aria-labelledby={`${id}-t`}>
+      <h2 id={`${id}-t`} style={styles.cardTitle}>
+        Pagamentos da operação
+      </h2>
+      <p style={styles.cardHelp}>
+        Estornar reabre a conta para correção e, na parcela em dinheiro, devolve o valor pela
+        gaveta. O pagamento original fica registrado.
+      </p>
+
+      {done ? (
+        <p style={styles.cashSaved} role="status">
+          {done}
+        </p>
+      ) : null}
+
+      {listError ? (
+        <Alert>{listError}</Alert>
+      ) : payments === null ? (
+        <p style={styles.cardHelp} aria-live="polite">
+          Carregando pagamentos…
+        </p>
+      ) : payments.length === 0 ? (
+        <p style={styles.cardHelp}>
+          Nenhum pagamento nesta operação ainda. Contas pagas aparecem aqui e podem ser estornadas.
+        </p>
+      ) : (
+        <ul style={styles.cashList} aria-label="Pagamentos da operação">
+          {payments.map((p) => (
+            <li key={p.id} style={styles.payItem}>
+              <div style={styles.cashRow}>
+                <span style={styles.cashRowTime} className="tj-tnum">
+                  {formatTime(p.createdAt)}
+                </span>
+                <span style={styles.cashRowMain}>
+                  <span style={styles.payAccounts}>{accountsLabel(p.accounts)}</span>
+                  <span style={styles.payMethods}>{methodsLabel(p.tenders)}</span>
+                </span>
+                <StatusPill
+                  label={p.status === PaymentStatus.REVERSED ? 'Estornado' : 'Pago'}
+                  tone={p.status === PaymentStatus.REVERSED ? 'cooking' : 'ready'}
+                  dot={false}
+                />
+                <span style={styles.cashRowAmount} className="tj-tnum">
+                  {formatBRL(p.total)}
+                </span>
+                {p.status === PaymentStatus.SETTLED ? (
+                  <Button
+                    variant="secondary"
+                    style={styles.compactBtn}
+                    onClick={() => toggleReverse(p.id)}
+                    aria-expanded={reversing === p.id}
+                  >
+                    Estornar
+                  </Button>
+                ) : null}
+              </div>
+              {reversing === p.id ? (
+                <form
+                  style={styles.payReverseForm}
+                  onSubmit={(e) => confirmReverse(e, p)}
+                  noValidate
+                >
+                  <TextField
+                    label="Motivo do estorno"
+                    id={`${id}-reason`}
+                    type="text"
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                    placeholder="Ex.: cobrança errada"
+                    maxLength={200}
+                    autoFocus
+                    disabled={submitting}
+                  />
+                  {error ? <Alert>{error}</Alert> : null}
+                  <div style={styles.payReverseActions}>
+                    <Button type="submit" variant="danger" busy={submitting} disabled={reason.trim() === ''}>
+                      {submitting ? 'Estornando…' : 'Confirmar estorno'}
+                    </Button>
+                    <Button variant="secondary" onClick={() => setReversing(null)} disabled={submitting}>
+                      Cancelar
+                    </Button>
+                  </div>
+                </form>
+              ) : null}
             </li>
           ))}
         </ul>
@@ -601,6 +772,7 @@ function CloseRegisterPanel({
             <SummaryRow label="Recebido em dinheiro" value={formatBRL(summary.cashReceipts)} />
             <SummaryRow label="Suprimentos" value={`+${formatBRL(summary.cashSupplies)}`} />
             <SummaryRow label="Sangrias" value={`−${formatBRL(summary.cashWithdrawals)}`} />
+            <SummaryRow label="Estornos" value={`−${formatBRL(summary.cashReversals)}`} />
             <div style={styles.summaryItem}>
               <dt style={styles.infoLabel}>Esperado na gaveta</dt>
               <dd style={styles.summaryValueNum} className="tj-tnum">
@@ -754,6 +926,7 @@ const MOVEMENT_LABEL: Record<CashMovementType, string> = {
   [CashMovementType.SALE_RECEIPT]: 'Venda',
   [CashMovementType.WITHDRAWAL]: 'Sangria',
   [CashMovementType.SUPPLY]: 'Suprimento',
+  [CashMovementType.PAYMENT_REVERSAL]: 'Estorno',
 };
 
 // Semântica de fluxo (cor + sinal + rótulo, nunca matiz só): entrada = ready,
@@ -762,7 +935,35 @@ const MOVEMENT_TONE: Record<CashMovementType, 'ready' | 'cooking' | 'pending'> =
   [CashMovementType.SALE_RECEIPT]: 'pending',
   [CashMovementType.WITHDRAWAL]: 'cooking',
   [CashMovementType.SUPPLY]: 'ready',
+  [CashMovementType.PAYMENT_REVERSAL]: 'cooking',
 };
+
+// Dinheiro que SAI da gaveta (sinal − na lista): sangria e estorno (RB-010/049).
+const OUTFLOW = new Set<CashMovementType>([
+  CashMovementType.WITHDRAWAL,
+  CashMovementType.PAYMENT_REVERSAL,
+]);
+
+const TAB_SINGULAR: Record<string, string> = {
+  WRISTBAND: 'Pulseira',
+  COMANDA: 'Comanda',
+  TABLE: 'Mesa',
+};
+
+const METHOD_LABEL: Record<string, string> = {
+  CASH: 'Dinheiro',
+  PIX: 'Pix',
+  CREDIT: 'Crédito',
+  DEBIT: 'Débito',
+};
+
+function accountsLabel(accounts: PaymentAccountRef[]): string {
+  return accounts.map((a) => `${TAB_SINGULAR[a.tabType]} ${a.number}`).join(', ');
+}
+
+function methodsLabel(tenders: PaymentTenderDto[]): string {
+  return tenders.map((t) => METHOD_LABEL[t.method]).join(' + ');
+}
 
 function messageFor(err: ApiError, fallback: string): string {
   if (err.status === 409) return err.message; // a API já devolve mensagem de negócio em PT
@@ -956,6 +1157,16 @@ const styles: Record<string, CSSProperties> = {
   },
   cashRowAmount: { fontSize: '16px', fontWeight: 600, color: 'var(--tj-ink)' },
   cashRowOut: { color: 'var(--tj-cooking-text)' },
+  payItem: { display: 'grid' },
+  payAccounts: { fontSize: '14px', fontWeight: 600, color: 'var(--tj-body)' },
+  payMethods: { fontSize: '13px', color: 'var(--tj-faint)' },
+  payReverseForm: {
+    display: 'grid',
+    gap: 'var(--tj-space-2)',
+    padding: '0 0 var(--tj-space-3)',
+    paddingLeft: 'calc(42px + var(--tj-space-3))',
+  },
+  payReverseActions: { display: 'flex', gap: 'var(--tj-space-2)', flexWrap: 'wrap' },
   summaryGrid: { margin: '0 0 var(--tj-space-3)', display: 'grid', gap: 'var(--tj-space-2)' },
   summaryItem: {
     display: 'flex',

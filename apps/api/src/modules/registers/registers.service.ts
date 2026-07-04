@@ -77,11 +77,16 @@ export class RegistersService {
     return r;
   }
 
-  /** Σ por tipo de movimentação do caixa (RB-010) — uma query, zeros p/ tipos ausentes. */
+  /** Σ por tipo de movimentação do caixa (RB-010/049) — uma query, zeros p/ tipos ausentes. */
   private async cashTotals(
     registerId: string,
     db: Prisma.TransactionClient | PrismaService = this.prisma,
-  ): Promise<{ receipts: Prisma.Decimal; supplies: Prisma.Decimal; withdrawals: Prisma.Decimal }> {
+  ): Promise<{
+    receipts: Prisma.Decimal;
+    supplies: Prisma.Decimal;
+    withdrawals: Prisma.Decimal;
+    reversals: Prisma.Decimal;
+  }> {
     const rows = await db.cashMovement.groupBy({
       by: ['type'],
       where: { registerId },
@@ -89,7 +94,12 @@ export class RegistersService {
     });
     const sum = (type: string) =>
       new Prisma.Decimal(rows.find((r) => r.type === type)?._sum.amount ?? 0).toDecimalPlaces(2);
-    return { receipts: sum('SALE_RECEIPT'), supplies: sum('SUPPLY'), withdrawals: sum('WITHDRAWAL') };
+    return {
+      receipts: sum('SALE_RECEIPT'),
+      supplies: sum('SUPPLY'),
+      withdrawals: sum('WITHDRAWAL'),
+      reversals: sum('PAYMENT_REVERSAL'),
+    };
   }
 
   /** Conta as contas OPEN da operação (RB-012/012a). */
@@ -106,6 +116,7 @@ export class RegistersService {
       totals.receipts,
       totals.supplies,
       totals.withdrawals,
+      totals.reversals,
     );
     const openAccountCount = await this.openAccountCount(register.businessSessionId);
     return {
@@ -114,6 +125,7 @@ export class RegistersService {
       cashReceipts: totals.receipts.toFixed(2),
       cashSupplies: totals.supplies.toFixed(2),
       cashWithdrawals: totals.withdrawals.toFixed(2),
+      cashReversals: totals.reversals.toFixed(2),
       expectedAmount: expectedAmount.toFixed(2),
       openAccountCount,
     };
@@ -239,6 +251,7 @@ export class RegistersService {
           totals.receipts,
           totals.supplies,
           totals.withdrawals,
+          totals.reversals,
         );
         const counted = new Prisma.Decimal(countedAmount).toDecimalPlaces(2);
         const difference = cashDifference(counted, expectedAmount);

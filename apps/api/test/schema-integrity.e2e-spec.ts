@@ -87,6 +87,29 @@ describe('Schema integrity (R-TS1, ADR-0025)', () => {
     }
   });
 
+  it('RB-039 (ADR-0030): unique parcial uniq_active_group_member — ≤1 grupo ATIVO por conta', async () => {
+    const def = await indexDef('uniq_active_group_member');
+    expect(def).toMatch(/UNIQUE INDEX/);
+    expect(def).toMatch(/\(account_id\)/);
+    expect(def).toMatch(/WHERE \(released_at IS NULL\)/);
+    // O unique GLOBAL antigo não pode voltar (bloquearia re-cobrança pós-estorno).
+    const legacy = await db.query(
+      `SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'account_group_members_account_id_key'`,
+    );
+    expect(legacy.rows).toHaveLength(0);
+  });
+
+  it('F-2: enums com REVERSED (PaymentStatus) e PAYMENT_REVERSAL (CashMovementType)', async () => {
+    const r = await db.query(
+      `SELECT t.typname, e.enumlabel FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
+       WHERE t.typname IN ('PaymentStatus', 'CashMovementType')`,
+    );
+    const labels = (name: string) =>
+      r.rows.filter((row) => row.typname === name).map((row) => row.enumlabel as string);
+    expect(labels('PaymentStatus')).toContain('REVERSED');
+    expect(labels('CashMovementType')).toContain('PAYMENT_REVERSAL');
+  });
+
   it('RB-044: pdv_app sem UPDATE/DELETE em audit_logs (com SELECT/INSERT)', async () => {
     const r = await db.query(
       `SELECT
