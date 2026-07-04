@@ -12,6 +12,7 @@ import { ApplyDiscountDto } from './dto/apply-discount.dto';
 import { CancelAccountDto } from './dto/cancel-account.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { IdempotencyKeyHeader } from '../../idempotency/idempotency-key.decorator';
 
 // Sem @Roles: qualquer autenticado (garçom lança pedidos — RB-040). RolesGuard global libera.
 @Controller('accounts')
@@ -33,13 +34,15 @@ export class AccountsController {
     return this.accounts.getById(id);
   }
 
+  // Idempotency-Key obrigatório: retry de rede não duplica o lote (ADR-0026 §14).
   @Post(':id/items')
   place(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: PlaceItemsDto,
     @CurrentUser() user: JwtPayload,
+    @IdempotencyKeyHeader() idempotencyKey: string,
   ): Promise<AccountDto> {
-    return this.accounts.placeItems(id, dto.items, user.sub);
+    return this.accounts.placeItems(id, dto.items, user.sub, idempotencyKey);
   }
 
   @Roles(Role.CASHIER)

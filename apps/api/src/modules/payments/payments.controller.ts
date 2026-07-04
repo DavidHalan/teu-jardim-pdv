@@ -5,15 +5,20 @@ import { PaymentsService } from './payments.service';
 import { PayDto } from './dto/pay.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { IdempotencyKeyHeader } from '../../idempotency/idempotency-key.decorator';
 
 @Controller('payments')
 export class PaymentsController {
   constructor(private readonly payments: PaymentsService) {}
 
-  // Receber pagamento é do caixa (RB-041).
+  // Receber pagamento é do caixa (RB-041). Idempotency-Key obrigatório (ADR-0026 §14).
   @Roles(Role.CASHIER)
   @Post()
-  pay(@Body() dto: PayDto, @CurrentUser() user: JwtPayload): Promise<PaymentDto> {
-    return this.payments.pay(dto.accountIds, dto.tenders, user.sub);
+  pay(
+    @Body() dto: PayDto,
+    @CurrentUser() user: JwtPayload,
+    @IdempotencyKeyHeader() idempotencyKey: string,
+  ): Promise<PaymentDto> {
+    return this.payments.pay(dto.accountIds, dto.tenders, user.sub, idempotencyKey);
   }
 }

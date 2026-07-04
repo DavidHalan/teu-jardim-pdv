@@ -3,6 +3,7 @@ import { ValidationPipe, type INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import * as bcrypt from 'bcryptjs';
 import request from 'supertest';
+import { randomUUID } from 'node:crypto';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 
@@ -16,7 +17,9 @@ describe('Checkout — pagar + fechar (e2e, serial)', () => {
   let token: string; // caixa
 
   const server = () => app.getHttpServer();
-  const auth = (req: request.Test): request.Test => req.set('Authorization', `Bearer ${token}`);
+  // Idempotency-Key fresca por request (comandos financeiros exigem — ADR-0026 §14).
+  const auth = (req: request.Test): request.Test =>
+    req.set('Authorization', `Bearer ${token}`).set('Idempotency-Key', randomUUID());
 
   async function cleanup(): Promise<void> {
     await prisma.paymentTender.deleteMany({ where: { payment: { accountGroup: { businessSession: { name: SESSION_NAME } } } } });

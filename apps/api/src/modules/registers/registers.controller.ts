@@ -6,6 +6,7 @@ import { OpenRegisterDto } from './dto/open-register.dto';
 import { CloseRegisterDto } from './dto/close-register.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { IdempotencyKeyHeader } from '../../idempotency/idempotency-key.decorator';
 
 @Controller('registers')
 export class RegistersController {
@@ -28,9 +29,14 @@ export class RegistersController {
     return this.registers.getCloseSummary(user.sub);
   }
 
+  // Fechamento é crítico e idempotente: retry devolve o fechamento original (ADR-0026 §14).
   @Roles(Role.CASHIER)
   @Post('current/close')
-  close(@Body() dto: CloseRegisterDto, @CurrentUser() user: JwtPayload): Promise<RegisterClosedDto> {
-    return this.registers.closeRegister(user.sub, dto.countedAmount);
+  close(
+    @Body() dto: CloseRegisterDto,
+    @CurrentUser() user: JwtPayload,
+    @IdempotencyKeyHeader() idempotencyKey: string,
+  ): Promise<RegisterClosedDto> {
+    return this.registers.closeRegister(user.sub, dto.countedAmount, idempotencyKey);
   }
 }

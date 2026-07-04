@@ -21,7 +21,7 @@ const make = (over: { register?: any; sessions?: any; businessSession?: any } = 
   } as any;
   const audit = { log: vi.fn().mockResolvedValue(undefined) } as any;
   const sessions = { getCurrentRowOrThrow: vi.fn().mockResolvedValue(sessionRow), ...(over.sessions ?? {}) } as any;
-  return { service: new RegistersService(prisma, audit, sessions), prisma, audit, sessions };
+  return { service: new RegistersService(prisma, audit, sessions, {} as any), prisma, audit, sessions };
 };
 
 describe('RegistersService.openRegister', () => {
@@ -79,24 +79,23 @@ describe('RegistersService.closeRegister (guards)', () => {
   const makeClose = (over: { openAccounts?: number; register?: any } = {}) => {
     const register = 'register' in over ? over.register : openRegister;
     const tx = {
+      businessSession: { findFirst: vi.fn().mockResolvedValue({ id: 's1', status: 'OPEN' }) },
       register: { findFirst: vi.fn().mockResolvedValue(register), update: vi.fn().mockResolvedValue({}) },
       account: { count: vi.fn().mockResolvedValue(over.openAccounts ?? 0) },
       cashMovement: { aggregate: vi.fn().mockResolvedValue({ _sum: { amount: new Prisma.Decimal('0') } }) },
     };
-    const prisma = {
-      $transaction: vi.fn(async (cb: any) => cb(tx)),
-      businessSession: { findFirst: vi.fn().mockResolvedValue({ id: 's1', status: 'OPEN' }) },
-    } as any;
-    return { service: new RegistersService(prisma, { log: vi.fn() } as any, {} as any) };
+    // Fake do IdempotencyService: executa o run direto com o tx (dedup coberto no e2e).
+    const idempotency = { execute: vi.fn(({ run }: any) => run(tx)) } as any;
+    return { service: new RegistersService({} as any, { log: vi.fn() } as any, {} as any, idempotency) };
   };
 
   it('bloqueia o fechamento se houver conta OPEN na operação (RB-012/012a → 409)', async () => {
     const { service } = makeClose({ openAccounts: 1 });
-    await expect(service.closeRegister('u1', '130.00')).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.closeRegister('u1', '130.00', 'k1')).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('rejeita fechar quando o operador não tem caixa aberto (409)', async () => {
     const { service } = makeClose({ register: null });
-    await expect(service.closeRegister('u1', '130.00')).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.closeRegister('u1', '130.00', 'k1')).rejects.toBeInstanceOf(ConflictException);
   });
 });

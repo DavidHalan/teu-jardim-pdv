@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { BusinessSessionsService } from '../business-sessions/business-sessions.service';
+import { IdempotencyService } from '../../idempotency/idempotency.service';
 import { computeLine } from './account-math';
 import { computeDiscountTotal } from './account-discount';
 import { AccountStatus, DiscountType, ProductType, TabType } from '@teu-jardim/shared';
@@ -65,6 +66,7 @@ export class AccountsService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly sessions: BusinessSessionsService,
+    private readonly idempotency: IdempotencyService,
   ) {}
 
   /** Abre conta na operação corrente. RB-006/008; RB-003 via índice parcial (P2002→409). */
@@ -117,9 +119,12 @@ export class AccountsService {
     };
   }
 
-  /** Resumo da conta (RB-018). 404 se não existir. */
-  async getById(id: string): Promise<AccountDto> {
-    const a = await this.prisma.account.findUnique({ where: { id }, include: accountInclude });
+  /** Resumo da conta (RB-018). 404 se não existir. `db`: tx client quando dentro de transação. */
+  async getById(
+    id: string,
+    db: Prisma.TransactionClient | PrismaService = this.prisma,
+  ): Promise<AccountDto> {
+    const a = await db.account.findUnique({ where: { id }, include: accountInclude });
     if (!a) throw new NotFoundException('Conta não encontrada.');
     return toAccountDto(a);
   }
@@ -127,78 +132,94 @@ export class AccountsService {
   /**
    * Lança o pedido montado de uma vez (RB-018). Numa transação:
    * valida cada produto (RB-017), calcula a linha (RB-014/019), persiste itens+observações,
-   * recalcula os totais. Audita ORDER_PLACED. Conta precisa estar OPEN.
+   * recalcula os totais. Audita ORDER_PLACED (na tx). Conta precisa estar OPEN.
+   * Idempotente por Idempotency-Key (ADR-0019): retry não duplica o lote.
    */
-  async placeItems(accountId: string, inputs: PlaceItemInput[], userId: string): Promise<AccountDto> {
+  async placeItems(
+    accountId: string,
+    inputs: PlaceItemInput[],
+    userId: string,
+    idempotencyKey: string,
+  ): Promise<AccountDto> {
     if (inputs.length === 0) {
       throw new BadRequestException('Pedido vazio: selecione ao menos um item.');
     }
 
-    await this.prisma.$transaction(async (tx) => {
-      const account = await tx.account.findUnique({ where: { id: accountId } });
-      if (!account) throw new NotFoundException('Conta não encontrada.');
-      if (account.status !== 'OPEN') {
-        throw new ConflictException('A conta não está aberta.');
-      }
-
-      for (const input of inputs) {
-        const product = await tx.product.findUnique({ where: { id: input.productId } });
-        if (!product) throw new NotFoundException(`Produto ${input.productId} não encontrado.`);
-        if (!product.active) {
-          throw new BadRequestException(`Produto "${product.name}" está inativo (RB-017).`);
+    return this.idempotency.execute<AccountDto>({
+      command: 'PLACE_ORDER',
+      key: idempotencyKey,
+      request: { accountId, items: inputs },
+      run: async (tx) => {
+        const account = await tx.account.findUnique({ where: { id: accountId } });
+        if (!account) throw new NotFoundException('Conta não encontrada.');
+        if (account.status !== 'OPEN') {
+          throw new ConflictException('A conta não está aberta.');
         }
 
-        const line = computeLine({
-          type: product.type as ProductType,
-          price: product.price,
-          quantity: input.quantity,
-          weightGrams: input.weightGrams,
-        });
+        for (const input of inputs) {
+          const product = await tx.product.findUnique({ where: { id: input.productId } });
+          if (!product) throw new NotFoundException(`Produto ${input.productId} não encontrado.`);
+          if (!product.active) {
+            throw new BadRequestException(`Produto "${product.name}" está inativo (RB-017).`);
+          }
 
-        const item = await tx.accountItem.create({
-          data: {
-            accountId,
-            productId: product.id,
-            quantity: line.quantity,
-            weightGrams: line.weightGrams,
-            unitPrice: line.unitPrice, // snapshot (RB-019)
-            lineTotal: line.lineTotal,
-            placedById: userId,
-          },
-        });
-
-        for (const obsId of input.observationIds ?? []) {
-          const obs = await tx.productObservation.findFirst({
-            where: { id: obsId, productId: product.id },
+          const line = computeLine({
+            type: product.type as ProductType,
+            price: product.price,
+            quantity: input.quantity,
+            weightGrams: input.weightGrams,
           });
-          if (obs) {
-            await tx.accountItemObservation.create({
-              data: { accountItemId: item.id, observationId: obs.id, text: obs.name }, // snapshot (RB-021)
+
+          const item = await tx.accountItem.create({
+            data: {
+              accountId,
+              productId: product.id,
+              quantity: line.quantity,
+              weightGrams: line.weightGrams,
+              unitPrice: line.unitPrice, // snapshot (RB-019)
+              lineTotal: line.lineTotal,
+              placedById: userId,
+            },
+          });
+
+          for (const obsId of input.observationIds ?? []) {
+            const obs = await tx.productObservation.findFirst({
+              where: { id: obsId, productId: product.id },
             });
+            if (obs) {
+              await tx.accountItemObservation.create({
+                data: { accountItemId: item.id, observationId: obs.id, text: obs.name }, // snapshot (RB-021)
+              });
+            }
           }
         }
-      }
 
-      // Recalcula totais (RB-028 prepara o terreno; desconto é S4 → discountTotal fica como está).
-      const items = await tx.accountItem.findMany({
-        where: { accountId, NOT: { kdsStatus: 'CANCELED' } },
-        select: { lineTotal: true },
-      });
-      const subtotal = items
-        .reduce((acc, it) => acc.add(it.lineTotal), new Prisma.Decimal(0))
-        .toDecimalPlaces(2);
-      const total = subtotal.sub(account.discountTotal).toDecimalPlaces(2);
+        // Recalcula totais (RB-028 prepara o terreno; desconto é S4 → discountTotal fica como está).
+        const items = await tx.accountItem.findMany({
+          where: { accountId, NOT: { kdsStatus: 'CANCELED' } },
+          select: { lineTotal: true },
+        });
+        const subtotal = items
+          .reduce((acc, it) => acc.add(it.lineTotal), new Prisma.Decimal(0))
+          .toDecimalPlaces(2);
+        const total = subtotal.sub(account.discountTotal).toDecimalPlaces(2);
 
-      await tx.account.update({ where: { id: accountId }, data: { subtotal, total } });
+        await tx.account.update({ where: { id: accountId }, data: { subtotal, total } });
+
+        await this.audit.log(
+          'ORDER_PLACED',
+          {
+            userId,
+            entityType: 'Account',
+            entityId: accountId,
+            metadata: { itemCount: inputs.length },
+          },
+          tx,
+        );
+
+        return this.getById(accountId, tx);
+      },
     });
-
-    await this.audit.log('ORDER_PLACED', {
-      userId,
-      entityType: 'Account',
-      entityId: accountId,
-      metadata: { itemCount: inputs.length },
-    });
-    return this.getById(accountId);
   }
 
   /** Aplica desconto na conta (RB-026/027/028). Recalcula o total. Caixa-gated no controller. */

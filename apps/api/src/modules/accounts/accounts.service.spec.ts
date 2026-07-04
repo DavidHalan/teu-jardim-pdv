@@ -28,7 +28,7 @@ const make = (over: { create?: any; findUnique?: any } = {}) => {
   } as any;
   const audit = { log: vi.fn().mockResolvedValue(undefined) } as any;
   const sessions = { getCurrentRowOrThrow: vi.fn().mockResolvedValue(sessionRow) } as any;
-  return { service: new AccountsService(prisma, audit, sessions), prisma, audit, sessions };
+  return { service: new AccountsService(prisma, audit, sessions, {} as any), prisma, audit, sessions };
 };
 
 describe('AccountsService.openAccount', () => {
@@ -81,7 +81,7 @@ describe('AccountsService.applyDiscount', () => {
     const prisma = { $transaction: vi.fn(async (cb: any) => cb(tx)), account: { findUnique: vi.fn().mockResolvedValue({ ...account, openedAt: new Date(), tabType: 'COMANDA', number: 25, total: new Prisma.Decimal('38.38'), items: [] }) } } as any;
     const audit = { log: vi.fn().mockResolvedValue(undefined) } as any;
     const sessions = {} as any;
-    const service = new AccountsService(prisma, audit, sessions);
+    const service = new AccountsService(prisma, audit, sessions, {} as any);
 
     await service.applyDiscount('a1', 'PERCENT' as any, '10', 'u1');
 
@@ -97,7 +97,7 @@ describe('AccountsService.applyDiscount', () => {
   it('rejeita desconto em conta não OPEN (409)', async () => {
     const tx = { account: { findUnique: vi.fn().mockResolvedValue({ id: 'a1', status: 'PAID' }) } };
     const prisma = { $transaction: vi.fn(async (cb: any) => cb(tx)) } as any;
-    const service = new AccountsService(prisma, { log: vi.fn() } as any, {} as any);
+    const service = new AccountsService(prisma, { log: vi.fn() } as any, {} as any, {} as any);
     await expect(service.applyDiscount('a1', 'FIXED' as any, '5', 'u1')).rejects.toBeInstanceOf(ConflictException);
   });
 });
@@ -110,7 +110,7 @@ describe('AccountsService.cancelAccount', () => {
     };
     const prisma = { $transaction: vi.fn(async (cb: any) => cb(tx)), account: { findUnique: vi.fn().mockResolvedValue({ id: 'a1', status: 'CANCELED', openedAt: new Date(), tabType: 'COMANDA', number: 25, subtotal: new Prisma.Decimal('0'), discountTotal: new Prisma.Decimal('0'), total: new Prisma.Decimal('0'), items: [] }) } } as any;
     const audit = { log: vi.fn().mockResolvedValue(undefined) } as any;
-    const service = new AccountsService(prisma, audit, {} as any);
+    const service = new AccountsService(prisma, audit, {} as any, {} as any);
 
     await service.cancelAccount('a1', 'cliente desistiu', 'u1');
 
@@ -121,7 +121,7 @@ describe('AccountsService.cancelAccount', () => {
   it('rejeita cancelar conta não OPEN (409)', async () => {
     const tx = { account: { findUnique: vi.fn().mockResolvedValue({ id: 'a1', status: 'PAID' }) } };
     const prisma = { $transaction: vi.fn(async (cb: any) => cb(tx)) } as any;
-    const service = new AccountsService(prisma, { log: vi.fn() } as any, {} as any);
+    const service = new AccountsService(prisma, { log: vi.fn() } as any, {} as any, {} as any);
     await expect(service.cancelAccount('a1', 'x', 'u1')).rejects.toBeInstanceOf(ConflictException);
   });
 });

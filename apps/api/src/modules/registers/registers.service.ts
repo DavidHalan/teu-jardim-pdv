@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable } from '@nestjs/comm
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { BusinessSessionsService } from '../business-sessions/business-sessions.service';
+import { IdempotencyService } from '../../idempotency/idempotency.service';
 import { OpenClosedStatus } from '@teu-jardim/shared';
 import type { RegisterDto, RegisterCloseSummary, RegisterClosedDto } from '@teu-jardim/shared';
 import type { Register as RegisterRow } from '../../prisma/client';
@@ -26,6 +27,7 @@ export class RegistersService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly sessions: BusinessSessionsService,
+    private readonly idempotency: IdempotencyService,
   ) {}
 
   /** Caixa OPEN do operador na operação corrente (ou null). Operator-scoped (PRD: 2 caixas). */
@@ -98,62 +100,77 @@ export class RegistersService {
     };
   }
 
-  /** Fecha o caixa (RB-011/012/012a). Bloqueado se houver conta OPEN na operação. */
-  async closeRegister(operatorId: string, countedAmount: string): Promise<RegisterClosedDto> {
-    let closed!: RegisterRow;
-    await this.prisma.$transaction(async (tx) => {
-      const session = await this.prisma.businessSession.findFirst({ where: { status: 'OPEN' } });
-      if (!session) throw new ConflictException('Nenhuma operação aberta.');
-      const register = await tx.register.findFirst({
-        where: { businessSessionId: session.id, operatorId, status: 'OPEN' },
-      });
-      if (!register) throw new ConflictException('Você não tem um caixa aberto.');
+  /**
+   * Fecha o caixa (RB-011/012/012a). Bloqueado se houver conta OPEN na operação.
+   * Idempotente por Idempotency-Key (ADR-0019): retry devolve o fechamento original.
+   */
+  async closeRegister(
+    operatorId: string,
+    countedAmount: string,
+    idempotencyKey: string,
+  ): Promise<RegisterClosedDto> {
+    return this.idempotency.execute<RegisterClosedDto>({
+      command: 'CLOSE_REGISTER',
+      key: idempotencyKey,
+      request: { operatorId, countedAmount },
+      run: async (tx) => {
+        const session = await tx.businessSession.findFirst({ where: { status: 'OPEN' } });
+        if (!session) throw new ConflictException('Nenhuma operação aberta.');
+        const register = await tx.register.findFirst({
+          where: { businessSessionId: session.id, operatorId, status: 'OPEN' },
+        });
+        if (!register) throw new ConflictException('Você não tem um caixa aberto.');
 
-      const open = await tx.account.count({ where: { businessSessionId: session.id, status: 'OPEN' } });
-      if (open > 0) {
-        throw new ConflictException('Há conta(s) aberta(s) na operação. Pague ou cancele antes de fechar o caixa.');
-      }
+        const open = await tx.account.count({ where: { businessSessionId: session.id, status: 'OPEN' } });
+        if (open > 0) {
+          throw new ConflictException('Há conta(s) aberta(s) na operação. Pague ou cancele antes de fechar o caixa.');
+        }
 
-      const agg = await tx.cashMovement.aggregate({
-        where: { registerId: register.id, type: 'SALE_RECEIPT' },
-        _sum: { amount: true },
-      });
-      const cashReceipts = new Prisma.Decimal(agg._sum.amount ?? 0).toDecimalPlaces(2);
-      const expectedAmount = expectedCash(register.openingAmount, cashReceipts);
-      const counted = new Prisma.Decimal(countedAmount).toDecimalPlaces(2);
-      const difference = cashDifference(counted, expectedAmount);
+        const agg = await tx.cashMovement.aggregate({
+          where: { registerId: register.id, type: 'SALE_RECEIPT' },
+          _sum: { amount: true },
+        });
+        const cashReceipts = new Prisma.Decimal(agg._sum.amount ?? 0).toDecimalPlaces(2);
+        const expectedAmount = expectedCash(register.openingAmount, cashReceipts);
+        const counted = new Prisma.Decimal(countedAmount).toDecimalPlaces(2);
+        const difference = cashDifference(counted, expectedAmount);
 
-      closed = await tx.register.update({
-        where: { id: register.id },
-        data: {
-          status: 'CLOSED',
-          closedAt: new Date(),
-          expectedAmount,
-          countedAmount: counted,
-          difference,
-        },
-      });
-    });
+        const closed: RegisterRow = await tx.register.update({
+          where: { id: register.id },
+          data: {
+            status: 'CLOSED',
+            closedAt: new Date(),
+            expectedAmount,
+            countedAmount: counted,
+            difference,
+          },
+        });
 
-    await this.audit.log('REGISTER_CLOSE', {
-      userId: operatorId,
-      entityType: 'Register',
-      entityId: closed.id,
-      metadata: {
-        expectedAmount: closed.expectedAmount?.toFixed(2),
-        countedAmount: closed.countedAmount?.toFixed(2),
-        difference: closed.difference?.toFixed(2),
+        await this.audit.log(
+          'REGISTER_CLOSE',
+          {
+            userId: operatorId,
+            entityType: 'Register',
+            entityId: closed.id,
+            metadata: {
+              expectedAmount: closed.expectedAmount?.toFixed(2),
+              countedAmount: closed.countedAmount?.toFixed(2),
+              difference: closed.difference?.toFixed(2),
+            },
+          },
+          tx,
+        );
+
+        return {
+          id: closed.id,
+          status: closed.status as RegisterClosedDto['status'],
+          openingAmount: closed.openingAmount.toFixed(2),
+          expectedAmount: closed.expectedAmount!.toFixed(2),
+          countedAmount: closed.countedAmount!.toFixed(2),
+          difference: closed.difference!.toFixed(2),
+          closedAt: closed.closedAt!.toISOString(),
+        };
       },
     });
-
-    return {
-      id: closed.id,
-      status: closed.status as RegisterClosedDto['status'],
-      openingAmount: closed.openingAmount.toFixed(2),
-      expectedAmount: closed.expectedAmount!.toFixed(2),
-      countedAmount: closed.countedAmount!.toFixed(2),
-      difference: closed.difference!.toFixed(2),
-      closedAt: closed.closedAt!.toISOString(),
-    };
   }
 }

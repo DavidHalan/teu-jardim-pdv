@@ -320,3 +320,11 @@ export interface RegisterClosedDto {
   difference: string; // contado − esperado (pode ser negativo)
   closedAt: string; // ISO 8601
 }
+
+// ----------------------------------------------------------------------------
+// Idempotência (ADR-0019/0026): mutação financeira exige este header (UUID por
+// intenção, gerado pelo cliente). Retry com a mesma chave devolve a resposta
+// original; mesma chave com payload diferente → 409.
+// ----------------------------------------------------------------------------
+
+export const IDEMPOTENCY_KEY_HEADER = 'Idempotency-Key';
