@@ -104,6 +104,22 @@ model User {
   @@map("users")
 }
 
+// Dedup de comando financeiro (ADR-0019/0025/0026): unicidade (command, key) no banco;
+// resposta gravada na MESMA transação do comando (replay devolve o original).
+// UPDATE/DELETE de audit_logs são revogados da role pdv_app na migration (ADR-0025).
+model IdempotencyKey {
+  id             String   @id @default(uuid())
+  command        String
+  key            String
+  requestHash    String   @map("request_hash")
+  responseStatus Int?     @map("response_status")
+  responseBody   Json?    @map("response_body")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@unique([command, key])
+  @@map("idempotency_keys")
+}
+
 model AuditLog {
   id         String   @id @default(uuid())
   userId     String?  @map("user_id")
@@ -246,6 +262,7 @@ model Account {
   subtotal          Decimal       @default(0) @db.Decimal(12, 2)
   discountTotal     Decimal       @default(0) @map("discount_total") @db.Decimal(12, 2)
   total             Decimal       @default(0) @db.Decimal(12, 2)
+  version           Int           @default(0) // lock otimista (ADR-0019/0025)
 
   businessSession BusinessSession      @relation(fields: [businessSessionId], references: [id])
   openedBy        User                 @relation(fields: [openedById], references: [id])
@@ -379,6 +396,7 @@ model Payment {
   registerId     String        @map("register_id")
   total          Decimal       @db.Decimal(12, 2)
   status         PaymentStatus @default(PENDING)
+  version        Int           @default(0) // lock otimista (ADR-0019/0025)
   createdById    String        @map("created_by")
   createdAt      DateTime      @default(now()) @map("created_at")
 

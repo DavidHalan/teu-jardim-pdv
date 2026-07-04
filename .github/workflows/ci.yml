@@ -23,7 +23,9 @@ jobs:
           --health-interval 10s --health-timeout 5s --health-retries 5
 
     env:
-      DATABASE_URL: postgresql://pdv:pdv@localhost:5432/teu_jardim?schema=public
+      # App roda como pdv_app (não-superuser); migrations como pdv (ADR-0025).
+      DATABASE_URL: postgresql://pdv_app:pdv_app@localhost:5432/teu_jardim?schema=public
+      MIGRATION_DATABASE_URL: postgresql://pdv:pdv@localhost:5432/teu_jardim?schema=public
       JWT_SECRET: ci-test-secret-not-for-production
 
     steps:
@@ -48,6 +50,11 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+      - name: Create app role (pdv_app)
+        run: |
+          docker exec ${{ job.services.postgres.id }} psql -U pdv -d teu_jardim -v ON_ERROR_STOP=1 \
+            -c "DO \$\$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'pdv_app') THEN CREATE ROLE pdv_app LOGIN PASSWORD 'pdv_app'; END IF; END \$\$;"
 
       - name: Apply migrations
         run: pnpm --filter @teu-jardim/api exec prisma migrate deploy
