@@ -1,13 +1,13 @@
 import { useEffect, useId, useMemo, useState } from 'react';
 import type { CSSProperties, FormEvent } from 'react';
-import { Role } from '@teu-jardim/shared';
-import type { RegisterCloseSummary, RegisterClosedDto } from '@teu-jardim/shared';
+import { CashMovementType, Role } from '@teu-jardim/shared';
+import type { CashMovementDto, RegisterCloseSummary, RegisterClosedDto } from '@teu-jardim/shared';
 import { useAuth } from '../auth/AuthContext';
 import { useShift } from '../shift/useShift';
 import { shiftApi } from '../shift/shift-api';
 import { formatBRL } from '../lib/money';
 import { ApiError } from '../lib/api';
-import { Alert, Button, Card, StatusPill, TextField, ThemeToggle } from '../shared/ui';
+import { Alert, Button, Card, Segmented, StatusPill, TextField, ThemeToggle } from '../shared/ui';
 import { AccountBoard } from './AccountBoard';
 
 /**
@@ -273,8 +273,10 @@ function Dashboard({
   register: { openingAmount: string; openedAt: string };
   refresh: () => Promise<void>;
 }): React.JSX.Element {
-  // Só um painel de fechamento aberto por vez. Caixa e operação fecham daqui (RB-011/007).
-  const [panel, setPanel] = useState<'none' | 'register' | 'operation'>('none');
+  // Só um painel aberto por vez. Caixa movimenta e fecha daqui (RB-011/052/007).
+  const [panel, setPanel] = useState<'none' | 'cash' | 'register' | 'operation'>('none');
+  const toggle = (p: 'cash' | 'register' | 'operation') =>
+    setPanel((cur) => (cur === p ? 'none' : p));
 
   return (
     <section style={styles.dashboard} aria-label="Atendimento">
@@ -291,7 +293,15 @@ function Dashboard({
           <Button
             variant="secondary"
             style={styles.compactBtn}
-            onClick={() => setPanel((p) => (p === 'register' ? 'none' : 'register'))}
+            onClick={() => toggle('cash')}
+            aria-expanded={panel === 'cash'}
+          >
+            Movimentações
+          </Button>
+          <Button
+            variant="secondary"
+            style={styles.compactBtn}
+            onClick={() => toggle('register')}
             aria-expanded={panel === 'register'}
           >
             Fechar caixa
@@ -299,7 +309,7 @@ function Dashboard({
           <Button
             variant="secondary"
             style={styles.compactBtn}
-            onClick={() => setPanel((p) => (p === 'operation' ? 'none' : 'operation'))}
+            onClick={() => toggle('operation')}
             aria-expanded={panel === 'operation'}
           >
             Encerrar operação
@@ -307,7 +317,9 @@ function Dashboard({
         </div>
       </div>
 
-      {panel === 'register' ? (
+      {panel === 'cash' ? (
+        <CashMovementsPanel />
+      ) : panel === 'register' ? (
         <CloseRegisterPanel refresh={refresh} onDone={() => setPanel('none')} />
       ) : panel === 'operation' ? (
         <EndOperationPanel refresh={refresh} onCancel={() => setPanel('none')} />
@@ -315,6 +327,164 @@ function Dashboard({
         <AccountBoard />
       )}
     </section>
+  );
+}
+
+/**
+ * Sangria/Suprimento + conferência da gaveta (RB-010/052). Inline (não modal),
+ * confirm-then-display: o movimento só aparece na lista após o servidor confirmar.
+ */
+function CashMovementsPanel(): React.JSX.Element {
+  const id = useId();
+  const [kind, setKind] = useState<'WITHDRAWAL' | 'SUPPLY'>('WITHDRAWAL');
+  const [amount, setAmount] = useState('');
+  const [reason, setReason] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState<CashMovementDto | null>(null);
+  const [movements, setMovements] = useState<CashMovementDto[] | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
+
+  async function loadMovements(): Promise<void> {
+    try {
+      const res = await shiftApi.movements();
+      setMovements(res.movements);
+      setListError(null);
+    } catch (err) {
+      setListError(err instanceof ApiError ? err.message : OFFLINE);
+    }
+  }
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount é o read-snapshot decidido (ADR-0023); TanStack Query assume no retrofit (R-TS3).
+    void loadMovements();
+  }, []);
+
+  function submit(event: FormEvent<HTMLFormElement>): void {
+    event.preventDefault();
+    if (submitting) return;
+    setError(null);
+    setSaved(null);
+    setSubmitting(true);
+    const body = { amount: normalizeAmount(amount), reason: reason.trim() };
+    const call = kind === 'WITHDRAWAL' ? shiftApi.registerWithdrawal : shiftApi.registerSupply;
+    call(body)
+      .then(async (m) => {
+        setSaved(m);
+        setAmount('');
+        setReason('');
+        await loadMovements();
+      })
+      .catch((err) => setError(err instanceof ApiError ? err.message : OFFLINE))
+      .finally(() => setSubmitting(false));
+  }
+
+  const verb = kind === 'WITHDRAWAL' ? 'Registrar sangria' : 'Registrar suprimento';
+
+  return (
+    <Card style={styles.cashCard} aria-labelledby={`${id}-t`}>
+      <h2 id={`${id}-t`} style={styles.cardTitle}>
+        Movimentações do caixa
+      </h2>
+      <p style={styles.cardHelp}>
+        Sangria retira dinheiro da gaveta; suprimento acrescenta. Tudo entra no esperado do
+        fechamento e fica auditado.
+      </p>
+
+      <form style={styles.form} onSubmit={submit} noValidate>
+        <Segmented
+          ariaLabel="Tipo de movimentação"
+          options={[
+            { value: 'WITHDRAWAL', label: 'Sangria' },
+            { value: 'SUPPLY', label: 'Suprimento' },
+          ]}
+          value={kind}
+          onChange={(v) => {
+            setKind(v);
+            setSaved(null);
+          }}
+        />
+        <div style={styles.cashFields}>
+          <TextField
+            label="Valor"
+            id={`${id}-amount`}
+            type="text"
+            inputMode="decimal"
+            leading="R$"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="0,00"
+            disabled={submitting}
+          />
+          <TextField
+            label="Motivo"
+            id={`${id}-reason`}
+            type="text"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder={kind === 'WITHDRAWAL' ? 'Ex.: depósito no banco' : 'Ex.: fundo de troco'}
+            maxLength={200}
+            disabled={submitting}
+          />
+        </div>
+        {error ? <Alert>{error}</Alert> : null}
+        {saved ? (
+          <p style={styles.cashSaved} role="status">
+            {saved.type === CashMovementType.WITHDRAWAL ? 'Sangria registrada' : 'Suprimento registrado'}:{' '}
+            <strong className="tj-tnum">{formatBRL(saved.amount)}</strong>
+          </p>
+        ) : null}
+        <Button
+          type="submit"
+          busy={submitting}
+          disabled={amount.trim() === '' || reason.trim() === ''}
+          fullWidth
+        >
+          {submitting ? 'Registrando…' : verb}
+        </Button>
+      </form>
+
+      <h3 style={styles.cashListTitle}>Nesta gaveta</h3>
+      {listError ? (
+        <Alert>{listError}</Alert>
+      ) : movements === null ? (
+        <p style={styles.cardHelp} aria-live="polite">
+          Carregando movimentações…
+        </p>
+      ) : movements.length === 0 ? (
+        <p style={styles.cardHelp}>
+          Nenhuma movimentação ainda. Vendas em dinheiro, sangrias e suprimentos aparecem aqui.
+        </p>
+      ) : (
+        <ul style={styles.cashList} aria-label="Movimentações do caixa">
+          {movements.map((m) => (
+            <li key={m.id} style={styles.cashRow}>
+              <span style={styles.cashRowTime} className="tj-tnum">
+                {formatTime(m.createdAt)}
+              </span>
+              <span style={styles.cashRowMain}>
+                <StatusPill
+                  label={MOVEMENT_LABEL[m.type]}
+                  tone={MOVEMENT_TONE[m.type]}
+                  dot={false}
+                />
+                {m.reason ? <span style={styles.cashRowReason}>{m.reason}</span> : null}
+              </span>
+              <span
+                style={{
+                  ...styles.cashRowAmount,
+                  ...(m.type === CashMovementType.WITHDRAWAL ? styles.cashRowOut : null),
+                }}
+                className="tj-tnum"
+              >
+                {m.type === CashMovementType.WITHDRAWAL ? '−' : '+'}
+                {formatBRL(m.amount)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
   );
 }
 
@@ -429,6 +599,8 @@ function CloseRegisterPanel({
           <dl style={styles.summaryGrid}>
             <SummaryRow label="Abertura" value={formatBRL(summary.openingAmount)} />
             <SummaryRow label="Recebido em dinheiro" value={formatBRL(summary.cashReceipts)} />
+            <SummaryRow label="Suprimentos" value={`+${formatBRL(summary.cashSupplies)}`} />
+            <SummaryRow label="Sangrias" value={`−${formatBRL(summary.cashWithdrawals)}`} />
             <div style={styles.summaryItem}>
               <dt style={styles.infoLabel}>Esperado na gaveta</dt>
               <dd style={styles.summaryValueNum} className="tj-tnum">
@@ -578,6 +750,20 @@ const ROLE_LABEL: Record<Role, string> = {
 
 const OFFLINE = 'Sem conexão com o servidor. Verifique a rede e tente de novo.';
 
+const MOVEMENT_LABEL: Record<CashMovementType, string> = {
+  [CashMovementType.SALE_RECEIPT]: 'Venda',
+  [CashMovementType.WITHDRAWAL]: 'Sangria',
+  [CashMovementType.SUPPLY]: 'Suprimento',
+};
+
+// Semântica de fluxo (cor + sinal + rótulo, nunca matiz só): entrada = ready,
+// saída = cooking (atenção, não erro), venda = neutro frequente.
+const MOVEMENT_TONE: Record<CashMovementType, 'ready' | 'cooking' | 'pending'> = {
+  [CashMovementType.SALE_RECEIPT]: 'pending',
+  [CashMovementType.WITHDRAWAL]: 'cooking',
+  [CashMovementType.SUPPLY]: 'ready',
+};
+
 function messageFor(err: ApiError, fallback: string): string {
   if (err.status === 409) return err.message; // a API já devolve mensagem de negócio em PT
   return fallback;
@@ -720,6 +906,56 @@ const styles: Record<string, CSSProperties> = {
   },
 
   closeActions: { display: 'grid', gap: 'var(--tj-space-2)', marginTop: 'var(--tj-space-2)' },
+
+  cashCard: { width: '100%', maxWidth: '560px' },
+  cashFields: {
+    display: 'grid',
+    gridTemplateColumns: 'minmax(120px, 160px) 1fr',
+    gap: 'var(--tj-space-3)',
+  },
+  cashSaved: {
+    margin: 0,
+    padding: 'var(--tj-space-2) var(--tj-space-3)',
+    fontSize: 'var(--tj-fs-body-sm)',
+    fontWeight: 500,
+    borderRadius: 'var(--tj-radius-input)',
+    color: 'var(--tj-ready-text)',
+    background: 'var(--tj-ready-pale)',
+  },
+  cashListTitle: {
+    margin: 'var(--tj-space-4) 0 var(--tj-space-2)',
+    fontSize: '12px',
+    fontWeight: 600,
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    color: 'var(--tj-muted)',
+  },
+  cashList: { listStyle: 'none', margin: 0, padding: 0, display: 'grid' },
+  cashRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 'var(--tj-space-3)',
+    padding: 'var(--tj-space-2) 0',
+    borderTop: '1px solid var(--tj-hairline)',
+  },
+  cashRowTime: { fontSize: '13px', color: 'var(--tj-faint)', minWidth: '42px' },
+  cashRowMain: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 'var(--tj-space-2)',
+    flex: 1,
+    minWidth: 0,
+    flexWrap: 'wrap',
+  },
+  cashRowReason: {
+    fontSize: '14px',
+    color: 'var(--tj-body)',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  cashRowAmount: { fontSize: '16px', fontWeight: 600, color: 'var(--tj-ink)' },
+  cashRowOut: { color: 'var(--tj-cooking-text)' },
   summaryGrid: { margin: '0 0 var(--tj-space-3)', display: 'grid', gap: 'var(--tj-space-2)' },
   summaryItem: {
     display: 'flex',

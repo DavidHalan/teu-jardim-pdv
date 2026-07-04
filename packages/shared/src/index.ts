@@ -296,13 +296,45 @@ export interface PaymentDto {
   createdAt: string; // ISO 8601
 }
 
-/** GET /registers/current/closing-summary — prévia do fechamento (RB-011). */
+/** GET /registers/current/closing-summary — prévia do fechamento (RB-011/052). */
 export interface RegisterCloseSummary {
   registerId: string;
   openingAmount: string;
   cashReceipts: string; // Σ recebimentos em dinheiro (SALE_RECEIPT)
-  expectedAmount: string; // abertura + recebimentos em dinheiro
+  cashSupplies: string; // Σ suprimentos (RB-052 — soma no esperado)
+  cashWithdrawals: string; // Σ sangrias (RB-052 — subtrai do esperado)
+  expectedAmount: string; // abertura + recebimentos + suprimentos − sangrias
   openAccountCount: number; // >0 bloqueia o fechamento (RB-012/012a)
+}
+
+// ----------------------------------------------------------------------------
+// Sangria / Suprimento (F-1 — RB-010/052)
+// ----------------------------------------------------------------------------
+
+/** POST /registers/current/withdrawals — sangria (RB-052: valor + motivo, Caixa). */
+export interface CashWithdrawalRequest {
+  amount: string; // Money string (RB-047), > 0
+  reason: string; // obrigatório (RB-052)
+}
+
+/** POST /registers/current/supplies — suprimento (RB-052: valor + motivo, Caixa). */
+export interface CashSupplyRequest {
+  amount: string;
+  reason: string;
+}
+
+/** Movimentação de caixa (RB-010). */
+export interface CashMovementDto {
+  id: string;
+  type: CashMovementType;
+  amount: string;
+  reason: string | null; // SALE_RECEIPT não carrega motivo
+  createdAt: string; // ISO 8601
+}
+
+/** GET /registers/current/movements — todos os tipos, mais recente primeiro. */
+export interface RegisterMovementsResponse {
+  movements: CashMovementDto[];
 }
 
 /** Fecha o caixa: operador informa o valor contado (RB-011). */

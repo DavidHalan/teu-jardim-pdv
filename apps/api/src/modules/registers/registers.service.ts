@@ -3,8 +3,14 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { BusinessSessionsService } from '../business-sessions/business-sessions.service';
 import { IdempotencyService } from '../../idempotency/idempotency.service';
-import { OpenClosedStatus } from '@teu-jardim/shared';
-import type { RegisterDto, RegisterCloseSummary, RegisterClosedDto } from '@teu-jardim/shared';
+import { CashMovementType, OpenClosedStatus } from '@teu-jardim/shared';
+import type {
+  CashMovementDto,
+  RegisterCloseSummary,
+  RegisterClosedDto,
+  RegisterDto,
+  RegisterMovementsResponse,
+} from '@teu-jardim/shared';
 import type { Register as RegisterRow } from '../../prisma/client';
 import { Prisma } from '../../prisma/client';
 import { expectedCash, cashDifference } from './register-math';
@@ -71,13 +77,19 @@ export class RegistersService {
     return r;
   }
 
-  /** Σ recebimentos em dinheiro do caixa (SALE_RECEIPT). */
-  private async cashReceipts(registerId: string): Promise<Prisma.Decimal> {
-    const agg = await this.prisma.cashMovement.aggregate({
-      where: { registerId, type: 'SALE_RECEIPT' },
+  /** Σ por tipo de movimentação do caixa (RB-010) — uma query, zeros p/ tipos ausentes. */
+  private async cashTotals(
+    registerId: string,
+    db: Prisma.TransactionClient | PrismaService = this.prisma,
+  ): Promise<{ receipts: Prisma.Decimal; supplies: Prisma.Decimal; withdrawals: Prisma.Decimal }> {
+    const rows = await db.cashMovement.groupBy({
+      by: ['type'],
+      where: { registerId },
       _sum: { amount: true },
     });
-    return new Prisma.Decimal(agg._sum.amount ?? 0).toDecimalPlaces(2);
+    const sum = (type: string) =>
+      new Prisma.Decimal(rows.find((r) => r.type === type)?._sum.amount ?? 0).toDecimalPlaces(2);
+    return { receipts: sum('SALE_RECEIPT'), supplies: sum('SUPPLY'), withdrawals: sum('WITHDRAWAL') };
   }
 
   /** Conta as contas OPEN da operação (RB-012/012a). */
@@ -85,18 +97,113 @@ export class RegistersService {
     return this.prisma.account.count({ where: { businessSessionId, status: 'OPEN' } });
   }
 
-  /** Prévia do fechamento (RB-011): esperado + se há conta aberta bloqueando. */
+  /** Prévia do fechamento (RB-011/052): esperado + se há conta aberta bloqueando. */
   async getCloseSummary(operatorId: string): Promise<RegisterCloseSummary> {
     const register = await this.getCurrentRowForOperatorOrThrow(operatorId);
-    const cashReceipts = await this.cashReceipts(register.id);
-    const expectedAmount = expectedCash(register.openingAmount, cashReceipts);
+    const totals = await this.cashTotals(register.id);
+    const expectedAmount = expectedCash(
+      register.openingAmount,
+      totals.receipts,
+      totals.supplies,
+      totals.withdrawals,
+    );
     const openAccountCount = await this.openAccountCount(register.businessSessionId);
     return {
       registerId: register.id,
       openingAmount: register.openingAmount.toFixed(2),
-      cashReceipts: cashReceipts.toFixed(2),
+      cashReceipts: totals.receipts.toFixed(2),
+      cashSupplies: totals.supplies.toFixed(2),
+      cashWithdrawals: totals.withdrawals.toFixed(2),
       expectedAmount: expectedAmount.toFixed(2),
       openAccountCount,
+    };
+  }
+
+  /**
+   * Sangria/Suprimento (RB-010/052): só Caixa com caixa OPEN; valor > 0 e motivo
+   * obrigatórios; auditado na tx; idempotente. Sem teto — risco aceito (dono, 2026-06-19).
+   */
+  private async addCashMovement(
+    type: 'WITHDRAWAL' | 'SUPPLY',
+    operatorId: string,
+    amount: string,
+    reason: string,
+    idempotencyKey: string,
+  ): Promise<CashMovementDto> {
+    const value = new Prisma.Decimal(amount);
+    if (value.lessThanOrEqualTo(0)) {
+      throw new BadRequestException('Valor deve ser maior que zero (RB-052).');
+    }
+
+    const command = type === 'WITHDRAWAL' ? 'CASH_WITHDRAWAL' : 'CASH_SUPPLY';
+    return this.idempotency.execute<CashMovementDto>({
+      command,
+      key: idempotencyKey,
+      request: { operatorId, amount, reason },
+      run: async (tx) => {
+        const session = await tx.businessSession.findFirst({ where: { status: 'OPEN' } });
+        if (!session) throw new ConflictException('Nenhuma operação aberta.');
+        const register = await tx.register.findFirst({
+          where: { businessSessionId: session.id, operatorId, status: 'OPEN' },
+        });
+        if (!register) throw new ConflictException('Você não tem um caixa aberto.');
+
+        const movement = await tx.cashMovement.create({
+          data: {
+            registerId: register.id,
+            type,
+            amount: value.toDecimalPlaces(2),
+            reason,
+            userId: operatorId,
+          },
+        });
+
+        await this.audit.log(
+          command, // CASH_WITHDRAWAL | CASH_SUPPLY (Sangria/SuprimentoRegistrado)
+          {
+            userId: operatorId,
+            entityType: 'CashMovement',
+            entityId: movement.id,
+            reason,
+            metadata: { registerId: register.id, amount: movement.amount.toFixed(2) },
+          },
+          tx,
+        );
+
+        return {
+          id: movement.id,
+          type: movement.type as CashMovementType,
+          amount: movement.amount.toFixed(2),
+          reason: movement.reason,
+          createdAt: movement.createdAt.toISOString(),
+        };
+      },
+    });
+  }
+
+  registerWithdrawal(operatorId: string, amount: string, reason: string, idempotencyKey: string): Promise<CashMovementDto> {
+    return this.addCashMovement('WITHDRAWAL', operatorId, amount, reason, idempotencyKey);
+  }
+
+  registerSupply(operatorId: string, amount: string, reason: string, idempotencyKey: string): Promise<CashMovementDto> {
+    return this.addCashMovement('SUPPLY', operatorId, amount, reason, idempotencyKey);
+  }
+
+  /** Movimentações do caixa OPEN do operador — todos os tipos, mais recente primeiro. */
+  async listMovements(operatorId: string): Promise<RegisterMovementsResponse> {
+    const register = await this.getCurrentRowForOperatorOrThrow(operatorId);
+    const rows = await this.prisma.cashMovement.findMany({
+      where: { registerId: register.id },
+      orderBy: { createdAt: 'desc' },
+    });
+    return {
+      movements: rows.map((m) => ({
+        id: m.id,
+        type: m.type as CashMovementType,
+        amount: m.amount.toFixed(2),
+        reason: m.reason,
+        createdAt: m.createdAt.toISOString(),
+      })),
     };
   }
 
@@ -126,12 +233,13 @@ export class RegistersService {
           throw new ConflictException('Há conta(s) aberta(s) na operação. Pague ou cancele antes de fechar o caixa.');
         }
 
-        const agg = await tx.cashMovement.aggregate({
-          where: { registerId: register.id, type: 'SALE_RECEIPT' },
-          _sum: { amount: true },
-        });
-        const cashReceipts = new Prisma.Decimal(agg._sum.amount ?? 0).toDecimalPlaces(2);
-        const expectedAmount = expectedCash(register.openingAmount, cashReceipts);
+        const totals = await this.cashTotals(register.id, tx);
+        const expectedAmount = expectedCash(
+          register.openingAmount,
+          totals.receipts,
+          totals.supplies,
+          totals.withdrawals,
+        );
         const counted = new Prisma.Decimal(countedAmount).toDecimalPlaces(2);
         const difference = cashDifference(counted, expectedAmount);
 

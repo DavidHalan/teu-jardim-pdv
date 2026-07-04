@@ -94,8 +94,84 @@ describe('RegistersService.closeRegister (guards)', () => {
     await expect(service.closeRegister('u1', '130.00', 'k1')).rejects.toBeInstanceOf(ConflictException);
   });
 
+  it('fechamento agrega os 3 tipos: esperado = abertura + recebimentos + suprimentos − sangrias (RB-052)', async () => {
+    const tx = {
+      businessSession: { findFirst: vi.fn().mockResolvedValue({ id: 's1', status: 'OPEN' }) },
+      register: {
+        findFirst: vi.fn().mockResolvedValue(openRegister),
+        update: vi.fn().mockImplementation(({ data }: any) =>
+          Promise.resolve({ ...openRegister, ...data, closedAt: new Date('2026-07-04T20:00:00Z') })),
+      },
+      account: { count: vi.fn().mockResolvedValue(0) },
+      cashMovement: {
+        groupBy: vi.fn().mockResolvedValue([
+          { type: 'SALE_RECEIPT', _sum: { amount: new Prisma.Decimal('30.00') } },
+          { type: 'SUPPLY', _sum: { amount: new Prisma.Decimal('50.00') } },
+          { type: 'WITHDRAWAL', _sum: { amount: new Prisma.Decimal('20.00') } },
+        ]),
+      },
+    };
+    const idempotency = { execute: vi.fn(({ run }: any) => run(tx)) } as any;
+    const service = new RegistersService({} as any, { log: vi.fn() } as any, {} as any, idempotency);
+
+    const closed = await service.closeRegister('u1', '160.00', 'k1');
+    expect(closed.expectedAmount).toBe('160.00'); // 100 + 30 + 50 − 20
+    expect(closed.difference).toBe('0.00');
+  });
+
   it('rejeita fechar quando o operador não tem caixa aberto (409)', async () => {
     const { service } = makeClose({ register: null });
     await expect(service.closeRegister('u1', '130.00', 'k1')).rejects.toBeInstanceOf(ConflictException);
+  });
+});
+
+describe('RegistersService sangria/suprimento (RB-052)', () => {
+  const openRegister = { id: 'r1', businessSessionId: 's1', operatorId: 'u1', status: 'OPEN' };
+
+  const makeMove = (over: { register?: any } = {}) => {
+    const register = 'register' in over ? over.register : openRegister;
+    const created = {
+      id: 'm1', type: 'WITHDRAWAL', amount: new Prisma.Decimal('30.00'),
+      reason: 'troco banco', createdAt: new Date('2026-07-04T18:00:00Z'),
+    };
+    const tx = {
+      businessSession: { findFirst: vi.fn().mockResolvedValue({ id: 's1', status: 'OPEN' }) },
+      register: { findFirst: vi.fn().mockResolvedValue(register) },
+      cashMovement: { create: vi.fn().mockResolvedValue(created) },
+    };
+    const audit = { log: vi.fn().mockResolvedValue(undefined) } as any;
+    const idempotency = { execute: vi.fn(({ run }: any) => run(tx)) } as any;
+    const service = new RegistersService({} as any, audit, {} as any, idempotency);
+    return { service, tx, audit };
+  };
+
+  it('registra sangria com valor+motivo e audita CASH_WITHDRAWAL na tx', async () => {
+    const { service, tx, audit } = makeMove();
+    const dto = await service.registerWithdrawal('u1', '30.00', 'troco banco', 'k1');
+
+    expect(tx.cashMovement.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ registerId: 'r1', type: 'WITHDRAWAL', reason: 'troco banco', userId: 'u1' }),
+    });
+    expect(audit.log).toHaveBeenCalledWith(
+      'CASH_WITHDRAWAL',
+      expect.objectContaining({ userId: 'u1', entityType: 'CashMovement', entityId: 'm1', reason: 'troco banco' }),
+      tx,
+    );
+    expect(dto).toEqual({
+      id: 'm1', type: 'WITHDRAWAL', amount: '30.00', reason: 'troco banco',
+      createdAt: '2026-07-04T18:00:00.000Z',
+    });
+  });
+
+  it('rejeita valor zero/negativo (RB-052 → 400) sem tocar no banco', async () => {
+    const { service, tx } = makeMove();
+    await expect(service.registerWithdrawal('u1', '0', 'x', 'k1')).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.registerSupply('u1', '-5', 'x', 'k1')).rejects.toBeInstanceOf(BadRequestException);
+    expect(tx.cashMovement.create).not.toHaveBeenCalled();
+  });
+
+  it('rejeita sem caixa aberto (409)', async () => {
+    const { service } = makeMove({ register: null });
+    await expect(service.registerSupply('u1', '10.00', 'fundo', 'k1')).rejects.toBeInstanceOf(ConflictException);
   });
 });
