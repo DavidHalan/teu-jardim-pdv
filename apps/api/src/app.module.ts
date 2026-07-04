@@ -11,6 +11,7 @@ import { RegistersModule } from './modules/registers/registers.module';
 import { ProductsModule } from './modules/products/products.module';
 import { AccountsModule } from './modules/accounts/accounts.module';
 import { PaymentsModule } from './modules/payments/payments.module';
+import { PrintModule } from './modules/print/print.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { RolesGuard } from './modules/auth/guards/roles.guard';
 
@@ -26,6 +27,7 @@ import { RolesGuard } from './modules/auth/guards/roles.guard';
     ProductsModule,
     AccountsModule,
     PaymentsModule,
+    PrintModule,
     HealthModule,
   ],
   providers: [

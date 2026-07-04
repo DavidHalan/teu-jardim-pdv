@@ -1,0 +1,25 @@
+{
+  "name": "@teu-jardim/print-service",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Consumidor da fila de cupons (ADR-0020): poll na API, render ESC/POS, ACK. Roda no host do PC do caixa (ADR-0021).",
+  "main": "./dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --max-warnings 0",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@teu-jardim/shared": "workspace:*",
+    "dotenv": "^17.2.4"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.6",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  }
+}

@@ -384,6 +384,63 @@ export interface RegisterClosedDto {
 }
 
 // ----------------------------------------------------------------------------
+// Impressão de preparo (F-6 — RB-022/051, ADR-0012/0015/0020)
+// Fila no Postgres, dona = API; apps/print-service consome por poll e dá ACK.
+// ----------------------------------------------------------------------------
+
+/** Ciclo do cupom (state-machines.md). Thin-slice usa QUEUED→PRINTED/FAILED; EXPIRED = F-6 full. */
+export enum PrintJobStatus {
+  QUEUED = 'QUEUED',
+  PRINTED = 'PRINTED',
+  EXPIRED = 'EXPIRED',
+  FAILED = 'FAILED',
+}
+
+/** Item do cupom — snapshot congelado no lançamento (nome/obs não seguem o catálogo). */
+export interface PrintJobItem {
+  name: string;
+  quantity: number;
+  weightGrams: number | null;
+  observations: string[];
+}
+
+/** Conteúdo do cupom de preparo (payload congelado do PrintJob). */
+export interface PrintJobPayload {
+  tabType: TabType;
+  number: number;
+  stationName: string;
+  items: PrintJobItem[];
+  placedBy: string; // nome do autor do lançamento
+  placedAt: string; // ISO 8601
+}
+
+export interface PrintJobDto {
+  id: string;
+  accountId: string;
+  stationId: string;
+  batchId: string; // Idempotency-Key do PLACE_ORDER (ADR-0015: 1 cupom por lançamento)
+  status: PrintJobStatus;
+  payload: PrintJobPayload;
+  error: string | null;
+  createdAt: string; // ISO 8601
+  ackedAt: string | null;
+}
+
+/** GET /print-jobs?status= — poll do Print Service (FIFO: mais antigo primeiro). */
+export interface PrintJobListResponse {
+  jobs: PrintJobDto[];
+}
+
+/** POST /print-jobs/:id/ack — resultado reportado pelo Print Service (idempotente por transição). */
+export interface AckPrintJobRequest {
+  result: PrintJobStatus.PRINTED | PrintJobStatus.FAILED;
+  error?: string;
+}
+
+/** Autenticação do print-service (cliente headless, mesmo host): chave estática via env. */
+export const PRINT_SERVICE_KEY_HEADER = 'X-Print-Service-Key';
+
+// ----------------------------------------------------------------------------
 // Idempotência (ADR-0019/0026): mutação financeira exige este header (UUID por
 // intenção, gerado pelo cliente). Retry com a mesma chave devolve a resposta
 // original; mesma chave com payload diferente → 409.

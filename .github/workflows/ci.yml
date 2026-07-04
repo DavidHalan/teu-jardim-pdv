@@ -27,6 +27,8 @@ jobs:
       DATABASE_URL: postgresql://pdv_app:pdv_app@localhost:5432/teu_jardim?schema=public
       MIGRATION_DATABASE_URL: postgresql://pdv:pdv@localhost:5432/teu_jardim?schema=public
       JWT_SECRET: ci-test-secret-not-for-production
+      # Chave do consumer de impressão (F-6) — e2e usa o mesmo default do .env.example.
+      PRINT_SERVICE_API_KEY: dev-print-key-change-me
 
     steps:
       - uses: actions/checkout@v4

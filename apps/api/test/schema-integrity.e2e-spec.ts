@@ -110,6 +110,13 @@ describe('Schema integrity (R-TS1, ADR-0025)', () => {
     expect(labels('CashMovementType')).toContain('PAYMENT_REVERSAL');
   });
 
+  it('ADR-0015 (F-6): unique parcial uniq_queued_print_job — ≤1 cupom QUEUED por (conta, estação, lançamento)', async () => {
+    const def = await indexDef('uniq_queued_print_job');
+    expect(def).toMatch(/UNIQUE INDEX/);
+    expect(def).toMatch(/\(account_id, station_id, batch_id\)/);
+    expect(def).toMatch(/WHERE \(status = 'QUEUED'::"PrintJobStatus"\)/);
+  });
+
   it('RB-044: pdv_app sem UPDATE/DELETE em audit_logs (com SELECT/INSERT)', async () => {
     const r = await db.query(
       `SELECT

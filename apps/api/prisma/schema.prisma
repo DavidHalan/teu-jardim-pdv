@@ -78,6 +78,13 @@ enum PaymentStatus {
   REVERSED
 }
 
+enum PrintJobStatus {
+  QUEUED
+  PRINTED
+  EXPIRED
+  FAILED
+}
+
 // ----------------------------------------------------------------------------
 // Core
 // ----------------------------------------------------------------------------
@@ -271,6 +278,7 @@ model Account {
   items           AccountItem[]
   discounts       Discount[]
   groupMemberships AccountGroupMember[]
+  printJobs       PrintJob[]
   transfersFrom   ItemTransfer[]       @relation("TransferFrom")
   transfersTo     ItemTransfer[]       @relation("TransferTo")
 
@@ -358,9 +366,35 @@ model Station {
   name   String
   active Boolean @default(true)
 
-  products Product[]
+  products  Product[]
+  printJobs PrintJob[]
 
   @@map("stations")
+}
+
+// Cupom de preparo (RB-022/051, ADR-0012/0015/0020): fila no Postgres, consumida por
+// poll pelo apps/print-service (nunca toca o banco — fala pela API). payload = snapshot
+// congelado do cupom no lançamento. batch_id = Idempotency-Key do PLACE_ORDER (1 lançamento).
+model PrintJob {
+  id        String         @id @default(uuid())
+  accountId String         @map("account_id")
+  stationId String         @map("station_id")
+  batchId   String         @map("batch_id")
+  payload   Json
+  status    PrintJobStatus @default(QUEUED)
+  error     String?
+  createdAt DateTime       @default(now()) @map("created_at")
+  ackedAt   DateTime?      @map("acked_at")
+
+  account Account @relation(fields: [accountId], references: [id])
+  station Station @relation(fields: [stationId], references: [id])
+
+  // ADR-0015: retry não duplica cupom — ≤1 QUEUED por (conta, estação, lançamento).
+  // Unique PARCIAL não é expressável no schema; SQL na migration:
+  //   CREATE UNIQUE INDEX uniq_queued_print_job ON print_jobs (account_id, station_id, batch_id) WHERE status = 'QUEUED';
+  @@index([status])
+  @@index([accountId])
+  @@map("print_jobs")
 }
 
 // ----------------------------------------------------------------------------

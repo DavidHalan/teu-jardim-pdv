@@ -8,6 +8,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { BusinessSessionsService } from '../business-sessions/business-sessions.service';
 import { IdempotencyService } from '../../idempotency/idempotency.service';
+import { PrintService } from '../print/print.service';
+import type { RoutedOrderItem } from '../print/print.service';
 import { computeLine } from './account-math';
 import { computeDiscountTotal } from './account-discount';
 import { AccountStatus, DiscountType, ProductType, TabType } from '@teu-jardim/shared';
@@ -67,6 +69,7 @@ export class AccountsService {
     private readonly audit: AuditService,
     private readonly sessions: BusinessSessionsService,
     private readonly idempotency: IdempotencyService,
+    private readonly print: PrintService,
   ) {}
 
   /** Abre conta na operação corrente. RB-006/008; RB-003 via índice parcial (P2002→409). */
@@ -156,6 +159,7 @@ export class AccountsService {
           throw new ConflictException('A conta não está aberta.');
         }
 
+        const routedItems: RoutedOrderItem[] = []; // cupom de preparo (RB-022)
         for (const input of inputs) {
           const product = await tx.product.findUnique({ where: { id: input.productId } });
           if (!product) throw new NotFoundException(`Produto ${input.productId} não encontrado.`);
@@ -182,6 +186,7 @@ export class AccountsService {
             },
           });
 
+          const obsTexts: string[] = [];
           for (const obsId of input.observationIds ?? []) {
             const obs = await tx.productObservation.findFirst({
               where: { id: obsId, productId: product.id },
@@ -190,9 +195,28 @@ export class AccountsService {
               await tx.accountItemObservation.create({
                 data: { accountItemId: item.id, observationId: obs.id, text: obs.name }, // snapshot (RB-021)
               });
+              obsTexts.push(obs.name);
             }
           }
+
+          if (product.kdsStationId) {
+            routedItems.push({
+              stationId: product.kdsStationId,
+              name: product.name,
+              quantity: line.quantity,
+              weightGrams: line.weightGrams,
+              observations: obsTexts,
+            });
+          }
         }
+
+        // 1 cupom por estação envolvida, na MESMA tx (ADR-0015/0020). batchId = idem-key do lançamento.
+        await this.print.enqueueForOrder(tx, {
+          account: { id: account.id, tabType: account.tabType, number: account.number },
+          batchId: idempotencyKey,
+          placedById: userId,
+          items: routedItems,
+        });
 
         // Recalcula totais (RB-028 prepara o terreno; desconto é S4 → discountTotal fica como está).
         const items = await tx.accountItem.findMany({

@@ -144,4 +144,23 @@ export default tseslint.config(
       'no-restricted-imports': ['error', { patterns: [noApiFromWeb] }],
     },
   },
+  // Print service: consumidor burro — só contrato shared; nunca api/web internals nem Prisma.
+  {
+    files: ['apps/print-service/src/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            noApiFromWeb,
+            noWebFromApi,
+            {
+              group: ['@prisma/*', 'prisma', 'pg'],
+              message: 'print-service não toca o Postgres — fala pela API (Fase 11 §6).',
+            },
+          ],
+        },
+      ],
+    },
+  },
 );
