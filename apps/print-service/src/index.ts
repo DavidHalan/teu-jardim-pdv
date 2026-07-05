@@ -38,7 +38,21 @@ if (!selected) {
   console.error(`[print-service] driver desconhecido: ${DRIVER} (disponíveis: ${Object.keys(drivers).join(', ')})`);
   process.exit(1);
 }
-const driver: PrinterDriver = selected;
+const defaultDriver: PrinterDriver = selected;
+
+// Roteamento A/B (ADR-0020): mapa estação→driver via env (JSON; chave = stationId ou
+// stationName). Estação fora do mapa cai no driver default. Ex. futuro com a térmica:
+//   STATION_PRINTERS={"Sucos":"bematech-a","Caixa":"bematech-b"}
+const stationPrinters: Record<string, string> = JSON.parse(process.env.STATION_PRINTERS ?? '{}');
+
+function driverFor(job: PrintJobDto): PrinterDriver {
+  const name = stationPrinters[job.stationId] ?? stationPrinters[job.payload.stationName];
+  if (name === undefined) return defaultDriver;
+  const d = drivers[name];
+  // driver mal configurado → erro → ACK FAILED com a causa (job não fica preso em QUEUED)
+  if (!d) throw new Error(`driver "${name}" da estação ${job.payload.stationName} não existe`);
+  return d;
+}
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}/api${path}`, {
@@ -59,7 +73,7 @@ function ack(jobId: string, body: AckPrintJobRequest): Promise<PrintJobDto> {
 
 async function handle(job: PrintJobDto): Promise<void> {
   try {
-    await driver.print(escposEncode(job.payload), formatCoupon(job.payload));
+    await driverFor(job).print(escposEncode(job.payload), formatCoupon(job.payload));
     await ack(job.id, { result: PrintJobStatus.PRINTED });
     console.log(`[print-service] PRINTED ${job.payload.stationName} · ${job.payload.tabType} ${job.payload.number} (${job.id})`);
   } catch (err) {

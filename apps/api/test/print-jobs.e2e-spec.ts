@@ -24,6 +24,7 @@ describe('Print jobs — fila de cupom (e2e, serial)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let token: string; // caixa
+  let employeeToken: string; // garçom (não vê alertas alheios)
 
   const server = () => app.getHttpServer();
   const auth = (req: request.Test): request.Test =>
@@ -52,6 +53,11 @@ describe('Print jobs — fila de cupom (e2e, serial)', () => {
       update: { passwordHash, active: true, role: 'CASHIER' },
       create: { username: 'caixa', name: 'Caixa', role: 'CASHIER', passwordHash },
     });
+    await prisma.user.upsert({
+      where: { username: 'garcom' },
+      update: { passwordHash, active: true, role: 'EMPLOYEE' },
+      create: { username: 'garcom', name: 'Garçom', role: 'EMPLOYEE', passwordHash },
+    });
     await prisma.station.upsert({ where: { id: STATION }, update: { name: 'e2e-f6-sucos', active: true }, create: { id: STATION, name: 'e2e-f6-sucos', active: true } });
     await prisma.category.upsert({ where: { id: CAT }, update: { name: 'e2e-f6', active: true, sortOrder: 96 }, create: { id: CAT, name: 'e2e-f6', active: true, sortOrder: 96 } });
     await prisma.product.upsert({ where: { id: P_ROUTED }, update: { categoryId: CAT, name: 'e2e-f6-suco', price: '10.00', type: 'UNIT', usesObservations: true, kdsStationId: STATION, active: true }, create: { id: P_ROUTED, categoryId: CAT, name: 'e2e-f6-suco', price: '10.00', type: 'UNIT', usesObservations: true, kdsStationId: STATION, active: true } });
@@ -60,6 +66,7 @@ describe('Print jobs — fila de cupom (e2e, serial)', () => {
 
     await cleanup();
     token = (await request(server()).post('/api/auth/login').send({ username: 'caixa', password: '1234' }).expect(200)).body.accessToken;
+    employeeToken = (await request(server()).post('/api/auth/login').send({ username: 'garcom', password: '1234' }).expect(200)).body.accessToken;
 
     await auth(request(server()).post('/api/business-sessions').send({ name: SESSION_NAME })).expect(201);
     await auth(request(server()).post('/api/registers').send({ openingAmount: '100.00' })).expect(201);
@@ -163,5 +170,63 @@ describe('Print jobs — fila de cupom (e2e, serial)', () => {
     const job = queued.body.jobs[0];
     await consumer(request(server()).post(`/api/print-jobs/${job.id}/ack`).send({ result: 'EXPIRED' })).expect(400);
     await consumer(request(server()).post(`/api/print-jobs/${job.id}/ack`).send({ result: 'QUEUED' })).expect(400);
+  });
+
+  it('TTL (RB-051): QUEUED vencido expira ANTES do poll — consumer nunca o recebe; audit PRINT_JOB_EXPIRED', async () => {
+    const acc = await auth(request(server()).post('/api/accounts').send({ tabType: 'COMANDA', number: 64 })).expect(201);
+    await auth(request(server()).post(`/api/accounts/${acc.body.id}/items`).send({ items: [{ productId: P_ROUTED, quantity: 1 }] })).expect(201);
+    const job = await prisma.printJob.findFirstOrThrow({ where: { accountId: acc.body.id } });
+
+    // retrodata além do TTL (5 min) — simula impressora fora do ar
+    await prisma.printJob.update({ where: { id: job.id }, data: { createdAt: new Date(Date.now() - 6 * 60_000) } });
+
+    const queued = await consumer(request(server()).get('/api/print-jobs?status=QUEUED')).expect(200);
+    expect(queued.body.jobs.map((j: { id: string }) => j.id)).not.toContain(job.id);
+
+    const expired = await prisma.printJob.findUniqueOrThrow({ where: { id: job.id } });
+    expect(expired.status).toBe('EXPIRED');
+
+    const audits = await prisma.auditLog.count({ where: { eventType: 'PRINT_JOB_EXPIRED', entityId: job.id } });
+    expect(audits).toBe(1);
+  });
+
+  it('alerta direcionado (RB-051): só o autor vê EXPIRED/FAILED; dismiss = ciência; não-autor → 404', async () => {
+    const mine = await request(server())
+      .get('/api/print-jobs/alerts')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    const expiredAlert = mine.body.jobs.find((j: { status: string }) => j.status === 'EXPIRED');
+    expect(expiredAlert).toBeDefined();
+    expect(mine.body.jobs.some((j: { status: string }) => j.status === 'FAILED')).toBe(true); // 'sem papel' do cenário anterior
+
+    // garçom não lançou nada — lista vazia; sem JWT → 401 (chave do consumer não vale aqui)
+    const theirs = await request(server())
+      .get('/api/print-jobs/alerts')
+      .set('Authorization', `Bearer ${employeeToken}`)
+      .expect(200);
+    expect(theirs.body.jobs).toHaveLength(0);
+    await request(server()).get('/api/print-jobs/alerts').expect(401);
+    await request(server()).get('/api/print-jobs/alerts').set('X-Print-Service-Key', KEY).expect(401);
+
+    // não-autor não dispensa
+    await request(server())
+      .post(`/api/print-jobs/${expiredAlert.id}/dismiss`)
+      .set('Authorization', `Bearer ${employeeToken}`)
+      .expect(404);
+
+    // autor dispensa → some da lista; re-dismiss → 404
+    await request(server())
+      .post(`/api/print-jobs/${expiredAlert.id}/dismiss`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(201);
+    const after = await request(server())
+      .get('/api/print-jobs/alerts')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(after.body.jobs.map((j: { id: string }) => j.id)).not.toContain(expiredAlert.id);
+    await request(server())
+      .post(`/api/print-jobs/${expiredAlert.id}/dismiss`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(404);
   });
 });

@@ -1,5 +1,13 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { PrintJobStatus, TabType } from '@teu-jardim/shared';
 import type { AckPrintJobRequest, PrintJobDto, PrintJobListResponse, PrintJobPayload } from '@teu-jardim/shared';
 import type { PrintJob as PrintJobRow } from '../../prisma/client';
@@ -14,6 +22,8 @@ export interface RoutedOrderItem {
   observations: string[];
 }
 
+const EXPIRE_SWEEP_MS = 30_000; // varredura da policy ExpiracaoDeCupom (ADR-0020)
+
 function toDto(j: PrintJobRow): PrintJobDto {
   return {
     id: j.id,
@@ -25,12 +35,64 @@ function toDto(j: PrintJobRow): PrintJobDto {
     error: j.error,
     createdAt: j.createdAt.toISOString(),
     ackedAt: j.ackedAt ? j.ackedAt.toISOString() : null,
+    dismissedAt: j.dismissedAt ? j.dismissedAt.toISOString() : null,
   };
 }
 
 @Injectable()
-export class PrintService {
-  constructor(private readonly prisma: PrismaService) {}
+export class PrintService implements OnModuleInit, OnModuleDestroy {
+  private sweep?: NodeJS.Timeout;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+    private readonly config: ConfigService,
+  ) {}
+
+  /** TTL do cupom (RB-051) — env; default 5 min (decisão dono 2026-07-04). */
+  private ttlMs(): number {
+    return Number(this.config.get('PRINT_TTL_SECONDS') ?? 300) * 1000;
+  }
+
+  onModuleInit(): void {
+    // Expiração é policy do SERVIDOR (ADR-0020): roda mesmo com consumer/impressora fora
+    // (senão o alerta ao operador nunca dispara). unref: não segura o processo em testes.
+    this.sweep = setInterval(() => void this.expireOverdue().catch(() => undefined), EXPIRE_SWEEP_MS);
+    this.sweep.unref?.();
+  }
+
+  onModuleDestroy(): void {
+    if (this.sweep) clearInterval(this.sweep);
+  }
+
+  /**
+   * CupomExpirado (RB-051): QUEUED além do TTL → EXPIRED (nunca imprime; evita preparo
+   * duplicado). Auditado por cupom — é o gatilho do alerta ao operador (fallback de voz).
+   */
+  async expireOverdue(): Promise<void> {
+    const cutoff = new Date(Date.now() - this.ttlMs());
+    const overdue = await this.prisma.printJob.findMany({
+      where: { status: 'QUEUED', createdAt: { lt: cutoff } },
+      select: { id: true, placedById: true, payload: true },
+    });
+    if (overdue.length === 0) return;
+
+    const expired = await this.prisma.printJob.updateMany({
+      // reafirma o corte no UPDATE — corrida com ACK do consumer perde para quem chegar primeiro
+      where: { id: { in: overdue.map((j) => j.id) }, status: 'QUEUED' },
+      data: { status: 'EXPIRED', ackedAt: new Date() },
+    });
+    if (expired.count === 0) return;
+
+    for (const job of overdue) {
+      await this.audit.log('PRINT_JOB_EXPIRED', {
+        userId: job.placedById ?? undefined,
+        entityType: 'PrintJob',
+        entityId: job.id,
+        metadata: { payload: job.payload as Prisma.InputJsonValue },
+      });
+    }
+  }
 
   /**
    * Enfileira cupons de preparo do lançamento (RB-022): 1 PrintJob por estação envolvida,
@@ -76,14 +138,16 @@ export class PrintService {
           accountId: args.account.id,
           stationId: station.id,
           batchId: args.batchId,
+          placedById: args.placedById,
           payload: payload as unknown as Prisma.InputJsonValue,
         },
       });
     }
   }
 
-  /** Fila para o poll do Print Service (ADR-0020) — FIFO. */
+  /** Fila para o poll do Print Service (ADR-0020) — FIFO. Expira os vencidos ANTES de entregar. */
   async listByStatus(status: PrintJobStatus): Promise<PrintJobListResponse> {
+    if (status === PrintJobStatus.QUEUED) await this.expireOverdue();
     const rows = await this.prisma.printJob.findMany({
       where: { status },
       orderBy: { createdAt: 'asc' },
@@ -113,6 +177,32 @@ export class PrintService {
         throw new ConflictException(`Cupom já está ${current.status}; transição inválida.`);
       }
     }
+    return this.getById(id);
+  }
+
+  /** Alertas do operador (RB-051: direcionado a quem lançou): EXPIRED/FAILED sem ciência. */
+  async listAlertsFor(userId: string): Promise<PrintJobListResponse> {
+    await this.expireOverdue(); // banner não espera a varredura
+    const rows = await this.prisma.printJob.findMany({
+      where: { placedById: userId, status: { in: ['EXPIRED', 'FAILED'] }, dismissedAt: null },
+      orderBy: { createdAt: 'desc' },
+    });
+    return { jobs: rows.map(toDto) };
+  }
+
+  /** Ciência do alerta — só o autor dispensa; registra que o fallback de voz foi acionado. */
+  async dismiss(id: string, userId: string): Promise<PrintJobDto> {
+    const updated = await this.prisma.printJob.updateMany({
+      where: { id, placedById: userId, status: { in: ['EXPIRED', 'FAILED'] }, dismissedAt: null },
+      data: { dismissedAt: new Date() },
+    });
+    if (updated.count === 0) throw new NotFoundException('Alerta não encontrado.');
+
+    await this.audit.log('PRINT_ALERT_DISMISSED', {
+      userId,
+      entityType: 'PrintJob',
+      entityId: id,
+    });
     return this.getById(id);
   }
 }

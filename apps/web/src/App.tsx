@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './auth/AuthContext';
 import { ProtectedRoute } from './auth/ProtectedRoute';
+import { PrintAlertsBanner } from './print-queue/PrintAlertsBanner';
 import { Login } from './screens/Login';
 import { Home } from './screens/Home';
 import { OrderScreen } from './screens/OrderScreen';
@@ -9,6 +10,9 @@ import { PayScreen } from './screens/PayScreen';
 export function App(): React.JSX.Element {
   const { isAuthenticated } = useAuth();
   return (
+    <>
+      {/* Alerta de cupom (RB-051): acompanha o operador em qualquer tela. */}
+      {isAuthenticated ? <PrintAlertsBanner /> : null}
     <Routes>
       <Route path="/login" element={isAuthenticated ? <Navigate to="/" replace /> : <Login />} />
       <Route
@@ -39,5 +43,6 @@ export function App(): React.JSX.Element {
       />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </>
   );
 }

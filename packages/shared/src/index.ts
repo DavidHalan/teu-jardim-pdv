@@ -424,6 +424,7 @@ export interface PrintJobDto {
   error: string | null;
   createdAt: string; // ISO 8601
   ackedAt: string | null;
+  dismissedAt: string | null; // ciência do alerta EXPIRED/FAILED pelo autor (RB-051)
 }
 
 /** GET /print-jobs?status= — poll do Print Service (FIFO: mais antigo primeiro). */

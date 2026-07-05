@@ -109,6 +109,7 @@ model User {
   createdPayments  Payment[]
   stockMovements   StockMovement[]
   auditLogs        AuditLog[]
+  printJobs        PrintJob[]
 
   @@map("users")
 }
@@ -376,18 +377,21 @@ model Station {
 // poll pelo apps/print-service (nunca toca o banco — fala pela API). payload = snapshot
 // congelado do cupom no lançamento. batch_id = Idempotency-Key do PLACE_ORDER (1 lançamento).
 model PrintJob {
-  id        String         @id @default(uuid())
-  accountId String         @map("account_id")
-  stationId String         @map("station_id")
-  batchId   String         @map("batch_id")
-  payload   Json
-  status    PrintJobStatus @default(QUEUED)
-  error     String?
-  createdAt DateTime       @default(now()) @map("created_at")
-  ackedAt   DateTime?      @map("acked_at")
+  id          String         @id @default(uuid())
+  accountId   String         @map("account_id")
+  stationId   String         @map("station_id")
+  batchId     String         @map("batch_id")
+  payload     Json
+  status      PrintJobStatus @default(QUEUED)
+  error       String?
+  placedById  String?        @map("placed_by_id") // autor do lançamento — alerta direcionado (RB-051)
+  dismissedAt DateTime?      @map("dismissed_at") // ciência do alerta EXPIRED/FAILED pelo autor
+  createdAt   DateTime       @default(now()) @map("created_at")
+  ackedAt     DateTime?      @map("acked_at")
 
-  account Account @relation(fields: [accountId], references: [id])
-  station Station @relation(fields: [stationId], references: [id])
+  account  Account @relation(fields: [accountId], references: [id])
+  station  Station @relation(fields: [stationId], references: [id])
+  placedBy User?   @relation(fields: [placedById], references: [id])
 
   // ADR-0015: retry não duplica cupom — ≤1 QUEUED por (conta, estação, lançamento).
   // Unique PARCIAL não é expressável no schema; SQL na migration:
