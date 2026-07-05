@@ -394,6 +394,28 @@ export interface RegisterClosedDto {
 }
 
 // ----------------------------------------------------------------------------
+// Auditoria — consulta (F-8 — RB-043/044): trilha imutável, Admin, read-only.
+// Event log (quem/quando/quê/motivo via metadata), NÃO diff de campos (A-R5).
+// ----------------------------------------------------------------------------
+
+export interface AuditEntryDto {
+  id: string;
+  eventType: string;
+  userName: string | null; // autor resolvido (null = sistema/desconhecido)
+  entityType: string | null;
+  entityId: string | null;
+  reason: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string; // ISO 8601
+}
+
+/** GET /audit?eventType=&from=&to=&userId=&limit=&cursor= — desc; cursor opaco (keyset). */
+export interface AuditQueryResponse {
+  entries: AuditEntryDto[];
+  nextCursor: string | null; // null = fim
+}
+
+// ----------------------------------------------------------------------------
 // Relatórios (F-7 — RB-053/053a): 5 projeções query-time por operação.
 // Money = string decimal (RB-047). MVP = JSON; ?format=csv reservado (futuro).
 // ----------------------------------------------------------------------------
