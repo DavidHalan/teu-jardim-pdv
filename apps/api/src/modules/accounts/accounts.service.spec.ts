@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '../../prisma/client';
 import { AccountsService } from './accounts.service';
 
@@ -76,7 +76,11 @@ describe('AccountsService.applyDiscount', () => {
         findUnique: vi.fn().mockResolvedValue(account),
         update: vi.fn().mockResolvedValue({}),
       },
-      discount: { create: vi.fn().mockResolvedValue({}) },
+      accountItem: { findMany: vi.fn().mockResolvedValue([{ lineTotal: new Prisma.Decimal('42.65') }]) },
+      discount: {
+        create: vi.fn().mockResolvedValue({}),
+        findFirst: vi.fn().mockResolvedValue({ type: 'PERCENT', value: new Prisma.Decimal('10') }),
+      },
     };
     const prisma = { $transaction: vi.fn(async (cb: any) => cb(tx)), account: { findUnique: vi.fn().mockResolvedValue({ ...account, openedAt: new Date(), tabType: 'COMANDA', number: 25, total: new Prisma.Decimal('38.38'), items: [] }) } } as any;
     const audit = { log: vi.fn().mockResolvedValue(undefined) } as any;
@@ -99,6 +103,97 @@ describe('AccountsService.applyDiscount', () => {
     const prisma = { $transaction: vi.fn(async (cb: any) => cb(tx)) } as any;
     const service = new AccountsService(prisma, { log: vi.fn() } as any, {} as any, {} as any, {} as any);
     await expect(service.applyDiscount('a1', 'FIXED' as any, '5', 'u1')).rejects.toBeInstanceOf(ConflictException);
+  });
+});
+
+/** tx fake p/ cancelItem: conta OPEN, item ativo de 30, resta 1 item de 20 após cancelar. */
+const makeCancelItemTx = (over: {
+  account?: any;
+  item?: any;
+  remaining?: { lineTotal: Prisma.Decimal }[];
+  lastDiscount?: any;
+} = {}) => {
+  const tx = {
+    account: {
+      findUnique: vi.fn().mockResolvedValue(
+        over.account === undefined ? { id: 'a1', status: 'OPEN' } : over.account,
+      ),
+      update: vi.fn().mockResolvedValue({}),
+    },
+    accountItem: {
+      findFirst: vi.fn().mockResolvedValue(
+        over.item === undefined
+          ? { id: 'i1', accountId: 'a1', kdsStatus: 'PENDING', lineTotal: new Prisma.Decimal('30.00') }
+          : over.item,
+      ),
+      update: vi.fn().mockResolvedValue({}),
+      findMany: vi.fn().mockResolvedValue(over.remaining ?? [{ lineTotal: new Prisma.Decimal('20.00') }]),
+    },
+    discount: { findFirst: vi.fn().mockResolvedValue(over.lastDiscount ?? null) },
+  };
+  const prisma = {
+    $transaction: vi.fn(async (cb: any) => cb(tx)),
+    account: {
+      findUnique: vi.fn().mockResolvedValue({
+        id: 'a1', status: 'OPEN', openedAt: new Date(), tabType: 'COMANDA', number: 25,
+        subtotal: new Prisma.Decimal('20'), discountTotal: new Prisma.Decimal('0'),
+        total: new Prisma.Decimal('20'), items: [],
+      }),
+    },
+  } as any;
+  const audit = { log: vi.fn().mockResolvedValue(undefined) } as any;
+  const service = new AccountsService(prisma, audit, {} as any, {} as any, {} as any);
+  return { service, tx, audit };
+};
+
+describe('AccountsService.cancelItem (RB-029/031/056 + recálculo RB-028/034)', () => {
+  it('cancela o item, recalcula totais e audita ITEM_CANCELED com motivo', async () => {
+    const { service, tx, audit } = makeCancelItemTx();
+    await service.cancelItem('a1', 'i1', 'pedido errado', 'u1');
+
+    expect(tx.accountItem.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'i1' }, data: { kdsStatus: 'CANCELED', canceledReason: 'pedido errado' } }),
+    );
+    const totals = tx.account.update.mock.calls[0][0].data;
+    expect(totals.subtotal.toFixed(2)).toBe('20.00');
+    expect(totals.discountTotal.toFixed(2)).toBe('0.00');
+    expect(totals.total.toFixed(2)).toBe('20.00');
+    expect(audit.log).toHaveBeenCalledWith(
+      'ITEM_CANCELED',
+      expect.objectContaining({ userId: 'u1', entityType: 'AccountItem', entityId: 'i1', reason: 'pedido errado' }),
+      tx,
+    );
+  });
+
+  it('desconto FIXED clampa ao novo subtotal — total nunca negativo (RB-034)', async () => {
+    const { service, tx } = makeCancelItemTx({
+      lastDiscount: { type: 'FIXED', value: new Prisma.Decimal('30.00') },
+    });
+    await service.cancelItem('a1', 'i1', 'x', 'u1');
+    const totals = tx.account.update.mock.calls[0][0].data;
+    expect(totals.discountTotal.toFixed(2)).toBe('20.00'); // clamp em 20 (subtotal)
+    expect(totals.total.toFixed(2)).toBe('0.00');
+  });
+
+  it('desconto PERCENT re-deriva sobre o novo subtotal (RB-028 uniforme)', async () => {
+    const { service, tx } = makeCancelItemTx({
+      lastDiscount: { type: 'PERCENT', value: new Prisma.Decimal('10') },
+    });
+    await service.cancelItem('a1', 'i1', 'x', 'u1');
+    const totals = tx.account.update.mock.calls[0][0].data;
+    expect(totals.discountTotal.toFixed(2)).toBe('2.00');
+    expect(totals.total.toFixed(2)).toBe('18.00');
+  });
+
+  it('item já cancelado → 409; item de outra conta → 404; conta não OPEN → 409', async () => {
+    const canceled = makeCancelItemTx({ item: { id: 'i1', kdsStatus: 'CANCELED' } });
+    await expect(canceled.service.cancelItem('a1', 'i1', 'x', 'u1')).rejects.toBeInstanceOf(ConflictException);
+
+    const missing = makeCancelItemTx({ item: null });
+    await expect(missing.service.cancelItem('a1', 'nope', 'x', 'u1')).rejects.toBeInstanceOf(NotFoundException);
+
+    const paid = makeCancelItemTx({ account: { id: 'a1', status: 'PAID' } });
+    await expect(paid.service.cancelItem('a1', 'i1', 'x', 'u1')).rejects.toBeInstanceOf(ConflictException);
   });
 });
 

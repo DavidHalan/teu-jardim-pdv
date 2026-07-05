@@ -7,6 +7,7 @@ import type {
   PlaceItemsRequest,
   ApplyDiscountRequest,
   CancelAccountRequest,
+  CancelItemRequest,
 } from '@teu-jardim/shared';
 
 export const accountsApi = {
@@ -20,4 +21,7 @@ export const accountsApi = {
     api.post(`/accounts/${id}/discount`, body),
   cancel: (id: string, body: CancelAccountRequest): Promise<AccountDto> =>
     api.post(`/accounts/${id}/cancel`, body),
+  // Cancelar item (RB-029/031): motivo obrigatório; corrigir = cancelar + relançar (RB-056).
+  cancelItem: (id: string, itemId: string, body: CancelItemRequest): Promise<AccountDto> =>
+    api.post(`/accounts/${id}/items/${itemId}/cancel`, body),
 };

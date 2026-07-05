@@ -122,6 +122,30 @@ export class AccountsService {
     };
   }
 
+  /**
+   * Recalcula subtotal/desconto/total (RB-028/034 — uniforme, decisão dono 2026-07-05):
+   * o desconto é RE-DERIVADO do último aplicado (PERCENT acompanha o novo subtotal;
+   * FIXED clampa a ele — total nunca negativo). Sem desconto → 0.
+   */
+  private async recomputeTotals(tx: Prisma.TransactionClient, accountId: string): Promise<void> {
+    const items = await tx.accountItem.findMany({
+      where: { accountId, NOT: { kdsStatus: 'CANCELED' } },
+      select: { lineTotal: true },
+    });
+    const subtotal = items
+      .reduce((acc, it) => acc.add(it.lineTotal), new Prisma.Decimal(0))
+      .toDecimalPlaces(2);
+    const last = await tx.discount.findFirst({
+      where: { accountId },
+      orderBy: { createdAt: 'desc' },
+    });
+    const discountTotal = last
+      ? computeDiscountTotal(subtotal, last.type as DiscountType, last.value)
+      : new Prisma.Decimal(0);
+    const total = subtotal.sub(discountTotal).toDecimalPlaces(2);
+    await tx.account.update({ where: { id: accountId }, data: { subtotal, discountTotal, total } });
+  }
+
   /** Resumo da conta (RB-018). 404 se não existir. `db`: tx client quando dentro de transação. */
   async getById(
     id: string,
@@ -218,17 +242,7 @@ export class AccountsService {
           items: routedItems,
         });
 
-        // Recalcula totais (RB-028 prepara o terreno; desconto é S4 → discountTotal fica como está).
-        const items = await tx.accountItem.findMany({
-          where: { accountId, NOT: { kdsStatus: 'CANCELED' } },
-          select: { lineTotal: true },
-        });
-        const subtotal = items
-          .reduce((acc, it) => acc.add(it.lineTotal), new Prisma.Decimal(0))
-          .toDecimalPlaces(2);
-        const total = subtotal.sub(account.discountTotal).toDecimalPlaces(2);
-
-        await tx.account.update({ where: { id: accountId }, data: { subtotal, total } });
+        await this.recomputeTotals(tx, accountId); // RB-028 uniforme (PERCENT re-deriva)
 
         await this.audit.log(
           'ORDER_PLACED',
@@ -254,18 +268,17 @@ export class AccountsService {
     userId: string,
     reason?: string,
   ): Promise<AccountDto> {
+    // Valida o desconto contra o subtotal ANTES de gravar (erro claro, sem row órfã).
     await this.prisma.$transaction(async (tx) => {
       const account = await tx.account.findUnique({ where: { id: accountId } });
       if (!account) throw new NotFoundException('Conta não encontrada.');
       if (account.status !== 'OPEN') throw new ConflictException('A conta não está aberta.');
 
-      const discountTotal = computeDiscountTotal(account.subtotal, type, new Prisma.Decimal(value));
-      const total = account.subtotal.sub(discountTotal).toDecimalPlaces(2);
-
+      computeDiscountTotal(account.subtotal, type, new Prisma.Decimal(value)); // 400 se inválido
       await tx.discount.create({
         data: { accountId, type, value, appliedById: userId, reason },
       });
-      await tx.account.update({ where: { id: accountId }, data: { discountTotal, total } });
+      await this.recomputeTotals(tx, accountId); // o recém-criado é o "último" (RB-028)
     });
 
     await this.audit.log('DISCOUNT_APPLIED', {
@@ -274,6 +287,47 @@ export class AccountsService {
       entityId: accountId,
       reason,
       metadata: { type, value },
+    });
+    return this.getById(accountId);
+  }
+
+  /**
+   * Cancela UM item (RB-029/056): kdsStatus → CANCELED com motivo (RB-031), recalcula
+   * totais/desconto (RB-028/034). Caixa-gated no controller. Edição de item não existe —
+   * corrigir = cancelar + relançar (RB-056).
+   */
+  async cancelItem(
+    accountId: string,
+    itemId: string,
+    reason: string,
+    userId: string,
+  ): Promise<AccountDto> {
+    await this.prisma.$transaction(async (tx) => {
+      const account = await tx.account.findUnique({ where: { id: accountId } });
+      if (!account) throw new NotFoundException('Conta não encontrada.');
+      if (account.status !== 'OPEN') throw new ConflictException('A conta não está aberta.');
+
+      const item = await tx.accountItem.findFirst({ where: { id: itemId, accountId } });
+      if (!item) throw new NotFoundException('Item não encontrado nesta conta.');
+      if (item.kdsStatus === 'CANCELED') throw new ConflictException('Item já está cancelado.');
+
+      await tx.accountItem.update({
+        where: { id: item.id },
+        data: { kdsStatus: 'CANCELED', canceledReason: reason },
+      });
+      await this.recomputeTotals(tx, accountId);
+
+      await this.audit.log(
+        'ITEM_CANCELED',
+        {
+          userId,
+          entityType: 'AccountItem',
+          entityId: item.id,
+          reason,
+          metadata: { accountId, lineTotal: item.lineTotal.toFixed(2) },
+        },
+        tx,
+      );
     });
     return this.getById(accountId);
   }

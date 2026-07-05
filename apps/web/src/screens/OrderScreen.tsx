@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import type { AccountDto, ProductDto } from '@teu-jardim/shared';
+import type { AccountDto, AccountItemDto, ProductDto } from '@teu-jardim/shared';
 import { Role, DiscountType } from '@teu-jardim/shared';
 import type { CartLine } from '../accounts/cart';
 import { previewLineTotal, previewCartTotal, toPlaceItems } from '../accounts/cart';
@@ -43,6 +43,12 @@ export function OrderScreen(): React.JSX.Element {
   const [cancelReason, setCancelReason] = useState('');
   const [cancelSubmitting, setCancelSubmitting] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  // Itens da conta (F-3, RB-029/056): cancelar item com motivo; corrigir = cancelar + relançar.
+  const [showItems, setShowItems] = useState(false);
+  const [cancelItemId, setCancelItemId] = useState<string | null>(null);
+  const [itemReason, setItemReason] = useState('');
+  const [itemSubmitting, setItemSubmitting] = useState(false);
+  const [itemError, setItemError] = useState<string | null>(null);
 
   const isCashier = user?.role === Role.CASHIER || user?.role === Role.ADMIN;
 
@@ -115,6 +121,27 @@ export function OrderScreen(): React.JSX.Element {
       .finally(() => setDiscountSubmitting(false));
   }
 
+  function cancelItem(itemId: string): void {
+    if (!itemReason.trim() || itemSubmitting) return;
+    setItemError(null);
+    setItemSubmitting(true);
+    accountsApi
+      .cancelItem(id, itemId, { reason: itemReason.trim() })
+      .then((updated) => {
+        setAccount(updated); // confirm-then-display: lista e totais vêm do servidor
+        setCancelItemId(null);
+        setItemReason('');
+      })
+      .catch((err) => {
+        setItemError(
+          err instanceof ApiError && (err.status === 400 || err.status === 409)
+            ? err.message
+            : 'Não foi possível cancelar o item.',
+        );
+      })
+      .finally(() => setItemSubmitting(false));
+  }
+
   function cancelAccount(): void {
     if (!cancelReason.trim() || cancelSubmitting) return;
     setCancelError(null);
@@ -173,6 +200,94 @@ export function OrderScreen(): React.JSX.Element {
               </span>
             </div>
           </div>
+
+          {showItems ? (
+            <div style={styles.cashierForm}>
+              <div style={styles.cashierFormTitle}>Itens da conta</div>
+              {account.items.length === 0 ? (
+                <p style={styles.itemsEmpty}>Nenhum item ativo na conta.</p>
+              ) : (
+                <ul style={styles.itemsList} aria-label="Itens da conta">
+                  {account.items.map((it) => (
+                    <li key={it.id} style={styles.itemEntry}>
+                      <div style={styles.itemRow}>
+                        <span style={styles.itemMain}>
+                          <span style={styles.itemName}>
+                            {itemQty(it)} {it.productName}
+                          </span>
+                          {it.observations.length > 0 ? (
+                            <span style={styles.itemObs}>
+                              {it.observations.map((o) => o.text).join(' · ')}
+                            </span>
+                          ) : null}
+                        </span>
+                        <span style={styles.itemTotal} className="tj-tnum">
+                          {formatBRL(it.lineTotal)}
+                        </span>
+                        <Button
+                          variant="danger-ghost"
+                          style={styles.itemCancelBtn}
+                          onClick={() => {
+                            setCancelItemId((cur) => (cur === it.id ? null : it.id));
+                            setItemReason('');
+                            setItemError(null);
+                          }}
+                          aria-expanded={cancelItemId === it.id}
+                        >
+                          Cancelar
+                        </Button>
+                      </div>
+                      {cancelItemId === it.id ? (
+                        <div style={styles.itemCancelForm}>
+                          <TextField
+                            label="Motivo do cancelamento"
+                            id={`tj-item-reason-${it.id}`}
+                            type="text"
+                            value={itemReason}
+                            onChange={(e) => setItemReason(e.target.value)}
+                            placeholder="Ex.: pedido errado"
+                            maxLength={200}
+                            autoFocus
+                            disabled={itemSubmitting}
+                          />
+                          {itemError ? <Alert>{itemError}</Alert> : null}
+                          <div style={styles.formActions}>
+                            <Button
+                              variant="secondary"
+                              onClick={() => setCancelItemId(null)}
+                              disabled={itemSubmitting}
+                            >
+                              Manter item
+                            </Button>
+                            <Button
+                              variant="danger"
+                              onClick={() => cancelItem(it.id)}
+                              busy={itemSubmitting}
+                              disabled={!itemReason.trim() && !itemSubmitting}
+                            >
+                              {itemSubmitting ? 'Cancelando…' : 'Cancelar item'}
+                            </Button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div style={styles.formActions}>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setShowItems(false);
+                    setCancelItemId(null);
+                    setItemError(null);
+                  }}
+                >
+                  Fechar
+                </Button>
+              </div>
+            </div>
+          ) : null}
 
           {showDiscount ? (
             <div style={styles.cashierForm}>
@@ -264,8 +379,11 @@ export function OrderScreen(): React.JSX.Element {
             </div>
           ) : null}
 
-          {!showDiscount && !showCancel ? (
+          {!showDiscount && !showCancel && !showItems ? (
             <div style={styles.cashierActions}>
+              <Button variant="secondary" onClick={() => setShowItems(true)}>
+                Itens da conta
+              </Button>
               <Button variant="secondary" onClick={() => setShowDiscount(true)}>
                 Aplicar desconto
               </Button>
@@ -647,6 +765,11 @@ const TAB_LABEL: Record<string, string> = {
 
 const OFFLINE = 'Sem conexão com o servidor. Verifique a rede e tente de novo.';
 
+/** "2x" (UNIT) ou "350g" (WEIGHED) — detalhe do item lançado. */
+function itemQty(it: AccountItemDto): string {
+  return it.weightGrams !== null ? `${it.weightGrams}g` : `${it.quantity}x`;
+}
+
 function accountLabel(a: AccountDto): string {
   return `${TAB_LABEL[a.tabType] ?? a.tabType} ${a.number}`;
 }
@@ -961,6 +1084,23 @@ const styles: Record<string, CSSProperties> = {
     gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
     gap: 'var(--tj-space-2)',
   },
+
+  // Itens da conta (F-3)
+  itemsList: { listStyle: 'none', margin: 0, padding: 0, display: 'grid' },
+  itemsEmpty: { margin: 0, fontSize: '14px', color: 'var(--tj-muted)' },
+  itemEntry: { display: 'grid', borderTop: '1px solid var(--tj-hairline)' },
+  itemRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 'var(--tj-space-3)',
+    padding: 'var(--tj-space-2) 0',
+  },
+  itemMain: { display: 'grid', flex: 1, minWidth: 0 },
+  itemName: { fontSize: '15px', fontWeight: 500, color: 'var(--tj-body)' },
+  itemObs: { fontSize: '13px', color: 'var(--tj-faint)' },
+  itemTotal: { fontSize: '15px', fontWeight: 600, color: 'var(--tj-ink)', flexShrink: 0 },
+  itemCancelBtn: { minHeight: '38px', padding: '0 var(--tj-space-3)', fontSize: '14px', flexShrink: 0 },
+  itemCancelForm: { display: 'grid', gap: 'var(--tj-space-3)', padding: '0 0 var(--tj-space-3)' },
 
   // Confirmação
   confirmMain: {

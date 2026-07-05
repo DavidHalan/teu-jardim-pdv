@@ -268,6 +268,11 @@ export interface CancelAccountRequest {
   reason: string;
 }
 
+/** Cancela UM item (RB-029/056). Motivo obrigatório (auditoria RB-031). */
+export interface CancelItemRequest {
+  reason: string;
+}
+
 /** Uma forma de pagamento da venda (RB-037). `amount` = string decimal canônica. */
 export interface PaymentTenderInput {
   method: PaymentMethod; // CASH | PIX | CREDIT | DEBIT

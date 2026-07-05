@@ -10,6 +10,7 @@ import { OpenAccountDto } from './dto/open-account.dto';
 import { PlaceItemsDto } from './dto/place-items.dto';
 import { ApplyDiscountDto } from './dto/apply-discount.dto';
 import { CancelAccountDto } from './dto/cancel-account.dto';
+import { CancelItemDto } from './dto/cancel-item.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { IdempotencyKeyHeader } from '../../idempotency/idempotency-key.decorator';
@@ -53,6 +54,18 @@ export class AccountsController {
     @CurrentUser() user: JwtPayload,
   ): Promise<AccountDto> {
     return this.accounts.applyDiscount(id, dto.type, dto.value, user.sub, dto.reason);
+  }
+
+  // Cancelar item (RB-029/031): Caixa, motivo obrigatório. Editar item não existe (RB-056).
+  @Roles(Role.CASHIER)
+  @Post(':id/items/:itemId/cancel')
+  cancelItem(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('itemId', ParseUUIDPipe) itemId: string,
+    @Body() dto: CancelItemDto,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<AccountDto> {
+    return this.accounts.cancelItem(id, itemId, dto.reason, user.sub);
   }
 
   @Roles(Role.CASHIER)
