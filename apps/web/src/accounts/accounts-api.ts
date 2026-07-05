@@ -8,6 +8,7 @@ import type {
   ApplyDiscountRequest,
   CancelAccountRequest,
   CancelItemRequest,
+  TransferItemRequest,
 } from '@teu-jardim/shared';
 
 export const accountsApi = {
@@ -24,4 +25,7 @@ export const accountsApi = {
   // Cancelar item (RB-029/031): motivo obrigatório; corrigir = cancelar + relançar (RB-056).
   cancelItem: (id: string, itemId: string, body: CancelItemRequest): Promise<AccountDto> =>
     api.post(`/accounts/${id}/items/${itemId}/cancel`, body),
+  // Transferir item (RB-032/034): destino OPEN da operação; devolve a ORIGEM atualizada.
+  transferItem: (id: string, itemId: string, body: TransferItemRequest): Promise<AccountDto> =>
+    api.post(`/accounts/${id}/items/${itemId}/transfer`, body),
 };

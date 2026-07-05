@@ -37,6 +37,7 @@ describe('Account items — cancelar item (e2e, serial)', () => {
 
   async function cleanup(): Promise<void> {
     await prisma.printJob.deleteMany({ where: { account: { businessSession: { name: SESSION_NAME } } } });
+    await prisma.itemTransfer.deleteMany({ where: { fromAccount: { businessSession: { name: SESSION_NAME } } } });
     await prisma.accountItem.deleteMany({ where: { account: { businessSession: { name: SESSION_NAME } } } });
     await prisma.discount.deleteMany({ where: { account: { businessSession: { name: SESSION_NAME } } } });
     await prisma.account.deleteMany({ where: { businessSession: { name: SESSION_NAME } } });
@@ -123,6 +124,68 @@ describe('Account items — cancelar item (e2e, serial)', () => {
       request(server()).post(`/api/accounts/${acc.body.id}/items`).send({ items: [{ productId: P_UNIT }] }),
     ).expect(201);
     expect(after.body).toMatchObject({ subtotal: '20.00', discountTotal: '2.00', total: '18.00' });
+  });
+
+  it('transfere item: some da origem, entra no destino, 2 totais recalculam, SEM cupom novo (RB-032/033/034)', async () => {
+    const origem = await openWithItems(75, 2); // 20,00
+    await auth(request(server()).post(`/api/accounts/${origem.accountId}/discount`).send({ type: 'PERCENT', value: '10' })).expect(201);
+    const destino = await auth(request(server()).post('/api/accounts').send({ tabType: 'COMANDA', number: 76 })).expect(201);
+    const jobsBefore = await prisma.printJob.count();
+
+    const res = await auth(
+      request(server())
+        .post(`/api/accounts/${origem.accountId}/items/${origem.itemIds[0]}/transfer`)
+        .send({ toAccountId: destino.body.id }),
+    ).expect(201);
+
+    // origem: linha (2x10=20) saiu inteira → subtotal 0, desconto re-derivado 0
+    expect(res.body).toMatchObject({ subtotal: '0.00', discountTotal: '0.00', total: '0.00' });
+
+    const dest = await auth(request(server()).get(`/api/accounts/${destino.body.id}`)).expect(200);
+    expect(dest.body.items).toHaveLength(1);
+    expect(dest.body).toMatchObject({ subtotal: '20.00', total: '20.00' });
+
+    // RB-033: transferência NÃO reimprime — nenhum PrintJob novo
+    expect(await prisma.printJob.count()).toBe(jobsBefore);
+
+    const transfer = await prisma.itemTransfer.findFirst({ where: { accountItemId: origem.itemIds[0] } });
+    expect(transfer).toMatchObject({ fromAccountId: origem.accountId, toAccountId: destino.body.id });
+    const audit = await prisma.auditLog.count({ where: { eventType: 'ITEM_TRANSFERRED', entityId: origem.itemIds[0] } });
+    expect(audit).toBe(1);
+
+    await auth(request(server()).post(`/api/accounts/${origem.accountId}/cancel`).send({ reason: 'e2e' })).expect(201);
+    await auth(request(server()).post(`/api/accounts/${destino.body.id}/cancel`).send({ reason: 'e2e' })).expect(201);
+  });
+
+  it('transfer guards: garçom 403 · destino = origem 400 · inexistente 404 · destino não OPEN 409 · item cancelado 409', async () => {
+    const origem = await openWithItems(77, 1);
+    const destino = await auth(request(server()).post('/api/accounts').send({ tabType: 'COMANDA', number: 78 })).expect(201);
+
+    await request(server())
+      .post(`/api/accounts/${origem.accountId}/items/${origem.itemIds[0]}/transfer`)
+      .set('Authorization', `Bearer ${employeeToken}`)
+      .send({ toAccountId: destino.body.id })
+      .expect(403);
+    await auth(
+      request(server()).post(`/api/accounts/${origem.accountId}/items/${origem.itemIds[0]}/transfer`).send({ toAccountId: origem.accountId }),
+    ).expect(400);
+    await auth(
+      request(server()).post(`/api/accounts/${origem.accountId}/items/${origem.itemIds[0]}/transfer`).send({ toAccountId: randomUUID() }),
+    ).expect(404);
+
+    await auth(request(server()).post(`/api/accounts/${destino.body.id}/cancel`).send({ reason: 'e2e' })).expect(201);
+    await auth(
+      request(server()).post(`/api/accounts/${origem.accountId}/items/${origem.itemIds[0]}/transfer`).send({ toAccountId: destino.body.id }),
+    ).expect(409); // destino CANCELED
+
+    await auth(request(server()).post(`/api/accounts/${origem.accountId}/items/${origem.itemIds[0]}/cancel`).send({ reason: 'x' })).expect(201);
+    const outro = await auth(request(server()).post('/api/accounts').send({ tabType: 'COMANDA', number: 79 })).expect(201);
+    await auth(
+      request(server()).post(`/api/accounts/${origem.accountId}/items/${origem.itemIds[0]}/transfer`).send({ toAccountId: outro.body.id }),
+    ).expect(409); // item cancelado não transfere
+
+    await auth(request(server()).post(`/api/accounts/${origem.accountId}/cancel`).send({ reason: 'e2e' })).expect(201);
+    await auth(request(server()).post(`/api/accounts/${outro.body.id}/cancel`).send({ reason: 'e2e' })).expect(201);
   });
 
   it('guards: sem motivo 400 · garçom 403 · já cancelado 409 · item inexistente 404 · conta não OPEN 409', async () => {

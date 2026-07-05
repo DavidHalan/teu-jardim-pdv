@@ -332,6 +332,59 @@ export class AccountsService {
     return this.getById(accountId);
   }
 
+  /**
+   * Transfere UM item para outra conta OPEN da mesma operação (RB-032/034).
+   * NÃO reimprime o cupom — o preparo já saiu (RB-033/ADR-0012): nenhum PrintJob novo.
+   * Recalcula totais/descontos das DUAS contas na mesma tx. Caixa-gated no controller.
+   */
+  async transferItem(
+    accountId: string,
+    itemId: string,
+    toAccountId: string,
+    userId: string,
+  ): Promise<AccountDto> {
+    if (toAccountId === accountId) {
+      throw new BadRequestException('A conta de destino é a própria conta.');
+    }
+    await this.prisma.$transaction(async (tx) => {
+      const from = await tx.account.findUnique({ where: { id: accountId } });
+      if (!from) throw new NotFoundException('Conta não encontrada.');
+      if (from.status !== 'OPEN') throw new ConflictException('A conta não está aberta.');
+
+      const to = await tx.account.findUnique({ where: { id: toAccountId } });
+      if (!to) throw new NotFoundException('Conta de destino não encontrada.');
+      if (to.status !== 'OPEN') throw new ConflictException('A conta de destino não está aberta.');
+      if (to.businessSessionId !== from.businessSessionId) {
+        throw new ConflictException('Conta de destino não pertence à operação corrente.');
+      }
+
+      const item = await tx.accountItem.findFirst({ where: { id: itemId, accountId } });
+      if (!item) throw new NotFoundException('Item não encontrado nesta conta.');
+      if (item.kdsStatus === 'CANCELED') {
+        throw new ConflictException('Item cancelado não pode ser transferido.');
+      }
+
+      await tx.accountItem.update({ where: { id: item.id }, data: { accountId: toAccountId } });
+      await tx.itemTransfer.create({
+        data: { accountItemId: item.id, fromAccountId: accountId, toAccountId, userId },
+      });
+      await this.recomputeTotals(tx, accountId);
+      await this.recomputeTotals(tx, toAccountId);
+
+      await this.audit.log(
+        'ITEM_TRANSFERRED',
+        {
+          userId,
+          entityType: 'AccountItem',
+          entityId: item.id,
+          metadata: { fromAccountId: accountId, toAccountId, lineTotal: item.lineTotal.toFixed(2) },
+        },
+        tx,
+      );
+    });
+    return this.getById(accountId); // a tela está na ORIGEM — devolve ela atualizada
+  }
+
   /** Cancela a conta inteira (RB-030/031). Itens → CANCELED; número liberado (status ≠ OPEN). */
   async cancelAccount(accountId: string, reason: string, userId: string): Promise<AccountDto> {
     await this.prisma.$transaction(async (tx) => {

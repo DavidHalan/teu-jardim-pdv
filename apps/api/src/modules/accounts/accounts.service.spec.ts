@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '../../prisma/client';
 import { AccountsService } from './accounts.service';
 
@@ -194,6 +194,85 @@ describe('AccountsService.cancelItem (RB-029/031/056 + recálculo RB-028/034)', 
 
     const paid = makeCancelItemTx({ account: { id: 'a1', status: 'PAID' } });
     await expect(paid.service.cancelItem('a1', 'i1', 'x', 'u1')).rejects.toBeInstanceOf(ConflictException);
+  });
+});
+
+/** tx fake p/ transferItem: origem a1 e destino a2 OPEN na mesma operação. */
+const makeTransferTx = (over: {
+  from?: any;
+  to?: any;
+  item?: any;
+} = {}) => {
+  const from = over.from === undefined ? { id: 'a1', status: 'OPEN', businessSessionId: 's1' } : over.from;
+  const to = over.to === undefined ? { id: 'a2', status: 'OPEN', businessSessionId: 's1' } : over.to;
+  const tx = {
+    account: {
+      findUnique: vi.fn((args: any) => Promise.resolve(args.where.id === 'a1' ? from : args.where.id === 'a2' ? to : null)),
+      update: vi.fn().mockResolvedValue({}),
+    },
+    accountItem: {
+      findFirst: vi.fn().mockResolvedValue(
+        over.item === undefined
+          ? { id: 'i1', accountId: 'a1', kdsStatus: 'PENDING', lineTotal: new Prisma.Decimal('10.00') }
+          : over.item,
+      ),
+      update: vi.fn().mockResolvedValue({}),
+      findMany: vi.fn().mockResolvedValue([]),
+    },
+    itemTransfer: { create: vi.fn().mockResolvedValue({}) },
+    discount: { findFirst: vi.fn().mockResolvedValue(null) },
+    printJob: { create: vi.fn() },
+  };
+  const prisma = {
+    $transaction: vi.fn(async (cb: any) => cb(tx)),
+    account: {
+      findUnique: vi.fn().mockResolvedValue({
+        id: 'a1', status: 'OPEN', openedAt: new Date(), tabType: 'COMANDA', number: 25,
+        subtotal: new Prisma.Decimal('0'), discountTotal: new Prisma.Decimal('0'),
+        total: new Prisma.Decimal('0'), items: [],
+      }),
+    },
+  } as any;
+  const audit = { log: vi.fn().mockResolvedValue(undefined) } as any;
+  const service = new AccountsService(prisma, audit, {} as any, {} as any, {} as any);
+  return { service, tx, audit };
+};
+
+describe('AccountsService.transferItem (RB-032/033/034)', () => {
+  it('move o item, grava ItemTransfer, recalcula AS DUAS contas, audita — e NÃO reimprime (RB-033)', async () => {
+    const { service, tx, audit } = makeTransferTx();
+    await service.transferItem('a1', 'i1', 'a2', 'u1');
+
+    expect(tx.accountItem.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'i1' }, data: { accountId: 'a2' } }),
+    );
+    expect(tx.itemTransfer.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ accountItemId: 'i1', fromAccountId: 'a1', toAccountId: 'a2', userId: 'u1' }) }),
+    );
+    expect(tx.account.update).toHaveBeenCalledTimes(2); // origem + destino
+    expect(tx.printJob.create).not.toHaveBeenCalled(); // não reprocessa na estação
+    expect(audit.log).toHaveBeenCalledWith(
+      'ITEM_TRANSFERRED',
+      expect.objectContaining({ userId: 'u1', entityType: 'AccountItem', entityId: 'i1' }),
+      tx,
+    );
+  });
+
+  it('destino = origem → 400; destino inexistente → 404; destino não OPEN → 409; outra operação → 409; item cancelado → 409', async () => {
+    const same = makeTransferTx();
+    await expect(same.service.transferItem('a1', 'i1', 'a1', 'u1')).rejects.toBeInstanceOf(BadRequestException);
+
+    const missing = makeTransferTx({ to: null });
+    await expect(missing.service.transferItem('a1', 'i1', 'a2', 'u1')).rejects.toBeInstanceOf(NotFoundException);
+
+    const closed = makeTransferTx({ to: { id: 'a2', status: 'PAID', businessSessionId: 's1' } });
+    await expect(closed.service.transferItem('a1', 'i1', 'a2', 'u1')).rejects.toBeInstanceOf(ConflictException);
+
+    const otherSession = makeTransferTx({ to: { id: 'a2', status: 'OPEN', businessSessionId: 's0' } });
+    await expect(otherSession.service.transferItem('a1', 'i1', 'a2', 'u1')).rejects.toBeInstanceOf(ConflictException);
+
+    const canceled = makeTransferTx({ item: { id: 'i1', kdsStatus: 'CANCELED' } });
+    await expect(canceled.service.transferItem('a1', 'i1', 'a2', 'u1')).rejects.toBeInstanceOf(ConflictException);
   });
 });
 

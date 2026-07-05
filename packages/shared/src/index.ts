@@ -273,6 +273,11 @@ export interface CancelItemRequest {
   reason: string;
 }
 
+/** Transfere UM item p/ outra conta OPEN da operação (RB-032/034). Não reimprime (RB-033). */
+export interface TransferItemRequest {
+  toAccountId: string;
+}
+
 /** Uma forma de pagamento da venda (RB-037). `amount` = string decimal canônica. */
 export interface PaymentTenderInput {
   method: PaymentMethod; // CASH | PIX | CREDIT | DEBIT

@@ -11,6 +11,7 @@ import { PlaceItemsDto } from './dto/place-items.dto';
 import { ApplyDiscountDto } from './dto/apply-discount.dto';
 import { CancelAccountDto } from './dto/cancel-account.dto';
 import { CancelItemDto } from './dto/cancel-item.dto';
+import { TransferItemDto } from './dto/transfer-item.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { IdempotencyKeyHeader } from '../../idempotency/idempotency-key.decorator';
@@ -66,6 +67,18 @@ export class AccountsController {
     @CurrentUser() user: JwtPayload,
   ): Promise<AccountDto> {
     return this.accounts.cancelItem(id, itemId, dto.reason, user.sub);
+  }
+
+  // Transferir item (RB-032/033/034): Caixa; destino OPEN da mesma operação; não reimprime.
+  @Roles(Role.CASHIER)
+  @Post(':id/items/:itemId/transfer')
+  transferItem(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('itemId', ParseUUIDPipe) itemId: string,
+    @Body() dto: TransferItemDto,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<AccountDto> {
+    return this.accounts.transferItem(id, itemId, dto.toAccountId, user.sub);
   }
 
   @Roles(Role.CASHIER)

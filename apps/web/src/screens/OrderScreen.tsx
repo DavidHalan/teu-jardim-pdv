@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import type { AccountDto, AccountItemDto, ProductDto } from '@teu-jardim/shared';
+import type { AccountDto, AccountItemDto, AccountSummaryDto, ProductDto } from '@teu-jardim/shared';
 import { Role, DiscountType } from '@teu-jardim/shared';
 import type { CartLine } from '../accounts/cart';
 import { previewLineTotal, previewCartTotal, toPlaceItems } from '../accounts/cart';
@@ -49,6 +49,10 @@ export function OrderScreen(): React.JSX.Element {
   const [itemReason, setItemReason] = useState('');
   const [itemSubmitting, setItemSubmitting] = useState(false);
   const [itemError, setItemError] = useState<string | null>(null);
+  // Transferir item (F-4, RB-032/034): destino = conta OPEN da operação; não reimprime (RB-033).
+  const [transferItemId, setTransferItemId] = useState<string | null>(null);
+  const [transferTargets, setTransferTargets] = useState<AccountSummaryDto[] | null>(null);
+  const [transferDone, setTransferDone] = useState<string | null>(null);
 
   const isCashier = user?.role === Role.CASHIER || user?.role === Role.ADMIN;
 
@@ -142,6 +146,40 @@ export function OrderScreen(): React.JSX.Element {
       .finally(() => setItemSubmitting(false));
   }
 
+  function openTransfer(itemId: string): void {
+    setTransferItemId((cur) => (cur === itemId ? null : itemId));
+    setCancelItemId(null);
+    setItemError(null);
+    setTransferDone(null);
+    if (transferTargets === null) {
+      accountsApi
+        .list()
+        .then((res) => setTransferTargets(res.accounts.filter((a) => a.id !== id)))
+        .catch(() => setItemError('Não foi possível listar as contas abertas.'));
+    }
+  }
+
+  function transferItem(itemId: string, target: AccountSummaryDto): void {
+    if (itemSubmitting) return;
+    setItemError(null);
+    setItemSubmitting(true);
+    accountsApi
+      .transferItem(id, itemId, { toAccountId: target.id })
+      .then((updated) => {
+        setAccount(updated); // origem atualizada pelo servidor
+        setTransferItemId(null);
+        setTransferDone(`Item transferido para ${TAB_LABEL[target.tabType] ?? target.tabType} ${target.number}.`);
+      })
+      .catch((err) => {
+        setItemError(
+          err instanceof ApiError && (err.status === 400 || err.status === 409)
+            ? err.message
+            : 'Não foi possível transferir o item.',
+        );
+      })
+      .finally(() => setItemSubmitting(false));
+  }
+
   function cancelAccount(): void {
     if (!cancelReason.trim() || cancelSubmitting) return;
     setCancelError(null);
@@ -204,6 +242,11 @@ export function OrderScreen(): React.JSX.Element {
           {showItems ? (
             <div style={styles.cashierForm}>
               <div style={styles.cashierFormTitle}>Itens da conta</div>
+              {transferDone ? (
+                <p style={styles.itemDone} role="status">
+                  {transferDone}
+                </p>
+              ) : null}
               {account.items.length === 0 ? (
                 <p style={styles.itemsEmpty}>Nenhum item ativo na conta.</p>
               ) : (
@@ -225,18 +268,56 @@ export function OrderScreen(): React.JSX.Element {
                           {formatBRL(it.lineTotal)}
                         </span>
                         <Button
+                          variant="secondary"
+                          style={styles.itemCancelBtn}
+                          onClick={() => openTransfer(it.id)}
+                          aria-expanded={transferItemId === it.id}
+                        >
+                          Transferir
+                        </Button>
+                        <Button
                           variant="danger-ghost"
                           style={styles.itemCancelBtn}
                           onClick={() => {
                             setCancelItemId((cur) => (cur === it.id ? null : it.id));
+                            setTransferItemId(null);
                             setItemReason('');
                             setItemError(null);
+                            setTransferDone(null);
                           }}
                           aria-expanded={cancelItemId === it.id}
                         >
                           Cancelar
                         </Button>
                       </div>
+                      {transferItemId === it.id ? (
+                        <div style={styles.itemCancelForm}>
+                          {itemError ? <Alert>{itemError}</Alert> : null}
+                          {transferTargets === null ? (
+                            <p style={styles.itemsEmpty} aria-live="polite">
+                              Carregando contas abertas…
+                            </p>
+                          ) : transferTargets.length === 0 ? (
+                            <p style={styles.itemsEmpty}>
+                              Nenhuma outra conta aberta. Abra a conta de destino no quadro antes.
+                            </p>
+                          ) : (
+                            <div style={styles.transferGrid} aria-label="Conta de destino">
+                              {transferTargets.map((t) => (
+                                <Button
+                                  key={t.id}
+                                  variant="secondary"
+                                  style={styles.itemCancelBtn}
+                                  onClick={() => transferItem(it.id, t)}
+                                  busy={itemSubmitting}
+                                >
+                                  {`${TAB_LABEL[t.tabType] ?? t.tabType} ${t.number} · ${formatBRL(t.total)}`}
+                                </Button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ) : null}
                       {cancelItemId === it.id ? (
                         <div style={styles.itemCancelForm}>
                           <TextField
@@ -1101,6 +1182,20 @@ const styles: Record<string, CSSProperties> = {
   itemTotal: { fontSize: '15px', fontWeight: 600, color: 'var(--tj-ink)', flexShrink: 0 },
   itemCancelBtn: { minHeight: '38px', padding: '0 var(--tj-space-3)', fontSize: '14px', flexShrink: 0 },
   itemCancelForm: { display: 'grid', gap: 'var(--tj-space-3)', padding: '0 0 var(--tj-space-3)' },
+  itemDone: {
+    margin: 0,
+    padding: 'var(--tj-space-2) var(--tj-space-3)',
+    fontSize: '14px',
+    fontWeight: 500,
+    borderRadius: 'var(--tj-radius-input)',
+    color: 'var(--tj-ready-text)',
+    background: 'var(--tj-ready-pale)',
+  },
+  transferGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))',
+    gap: 'var(--tj-space-2)',
+  },
 
   // Confirmação
   confirmMain: {
