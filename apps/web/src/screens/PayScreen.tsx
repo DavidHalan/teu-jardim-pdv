@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { Navigate, useParams, useNavigate } from 'react-router-dom';
-import type { AccountDto } from '@teu-jardim/shared';
+import type { AccountDto, AccountSummaryDto } from '@teu-jardim/shared';
 import { PaymentMethod, Role } from '@teu-jardim/shared';
 import { useAuth } from '../auth/AuthContext';
 import { accountsApi } from '../accounts/accounts-api';
 import { paymentsApi } from '../payments/payments-api';
-import { remaining, isExactlyPaid, toTenderRequest } from '../payments/tenders';
+import { remaining, isExactlyPaid, sumTotals, toTenderRequest } from '../payments/tenders';
 import type { TenderRow } from '../payments/tenders';
 import { formatBRL } from '../lib/money';
 import { ApiError } from '../lib/api';
@@ -27,7 +27,11 @@ export function PayScreen(): React.JSX.Element {
   const [rows, setRows] = useState<TenderRow[]>([{ method: PaymentMethod.CASH, amount: '' }]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState<{ labels: string; total: string } | null>(null);
+  // Agrupamento (F-5, RB-035/036): contas extras pagas junto; total = soma-com-desconto.
+  const [extras, setExtras] = useState<AccountSummaryDto[]>([]);
+  const [showPicker, setShowPicker] = useState(false);
+  const [pickerTargets, setPickerTargets] = useState<AccountSummaryDto[] | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -68,18 +72,45 @@ export function PayScreen(): React.JSX.Element {
     setRows((prev) => prev.filter((_, i) => i !== idx));
   }
 
+  const groupTotal = account ? sumTotals([account.total, ...extras.map((e) => e.total)]) : '0.00';
+
   function payAllCash(): void {
     if (!account) return;
-    setRows([{ method: PaymentMethod.CASH, amount: account.total }]);
+    setRows([{ method: PaymentMethod.CASH, amount: groupTotal }]);
+  }
+
+  function openPicker(): void {
+    setShowPicker((cur) => !cur);
+    accountsApi
+      .list()
+      .then((res) =>
+        setPickerTargets(
+          res.accounts.filter((a) => a.id !== id && !extras.some((e) => e.id === a.id)),
+        ),
+      )
+      .catch(() => setError('Não foi possível listar as contas abertas.'));
+  }
+
+  function addExtra(target: AccountSummaryDto): void {
+    setExtras((prev) => [...prev, target]);
+    setShowPicker(false);
+    setRows([{ method: PaymentMethod.CASH, amount: '' }]); // total mudou → remonta o split
+  }
+
+  function removeExtra(accountId: string): void {
+    setExtras((prev) => prev.filter((e) => e.id !== accountId));
+    setRows([{ method: PaymentMethod.CASH, amount: '' }]);
   }
 
   function confirm(): void {
     if (!account || submitting) return;
     setError(null);
     setSubmitting(true);
+    const labels = [accountLabel(account), ...extras.map((e) => summaryLabel(e))].join(', ');
+    const total = groupTotal;
     paymentsApi
-      .pay({ accountIds: [id], tenders: toTenderRequest(rows) })
-      .then(() => setDone(true))
+      .pay({ accountIds: [id, ...extras.map((e) => e.id)], tenders: toTenderRequest(rows) })
+      .then(() => setDone({ labels, total }))
       .catch((err) => {
         setError(
           err instanceof ApiError && (err.status === 400 || err.status === 409)
@@ -96,12 +127,12 @@ export function PayScreen(): React.JSX.Element {
       <div style={styles.page}>
         <main style={styles.centeredMain}>
           <Card style={styles.successCard}>
-            <StatusPill label="Conta paga" tone="ready" />
-            <h1 style={styles.displayTitle}>{account ? accountLabel(account) : 'Conta'}</h1>
+            <StatusPill label={extras.length > 0 ? 'Contas pagas' : 'Conta paga'} tone="ready" />
+            <h1 style={styles.displayTitle}>{done.labels}</h1>
             <div style={styles.paidTotalRow}>
               <span style={styles.summaryLabel}>Total pago</span>
               <span style={styles.displayAmount} className="tj-tnum">
-                {account ? formatBRL(account.total) : ''}
+                {formatBRL(done.total)}
               </span>
             </div>
             <div style={styles.doneActions}>
@@ -145,9 +176,9 @@ export function PayScreen(): React.JSX.Element {
     );
   }
 
-  const rem = remaining(account.total, rows);
+  const rem = remaining(groupTotal, rows);
   const remNegative = rem.startsWith('-');
-  const exactlyPaid = isExactlyPaid(account.total, rows);
+  const exactlyPaid = isExactlyPaid(groupTotal, rows);
 
   return (
     <div style={styles.page}>
@@ -180,12 +211,62 @@ export function PayScreen(): React.JSX.Element {
               </div>
             ) : null}
             <div style={styles.totalRow}>
-              <span style={styles.totalLabel}>Total</span>
+              <span style={styles.totalLabel}>{extras.length > 0 ? 'Conta' : 'Total'}</span>
               <span style={styles.totalAmount} className="tj-tnum">
                 {formatBRL(account.total)}
               </span>
             </div>
           </div>
+
+          {/* Agrupamento (RB-035/036): soma dos totais-com-desconto; sem desconto sobre o grupo */}
+          {extras.map((e) => (
+            <div key={e.id} style={styles.groupRow}>
+              <span style={styles.groupLabel}>{summaryLabel(e)}</span>
+              <span style={styles.groupValue} className="tj-tnum">
+                {formatBRL(e.total)}
+              </span>
+              <button
+                type="button"
+                onClick={() => removeExtra(e.id)}
+                style={styles.removeBtn}
+                className="tj-press"
+                aria-label={`Tirar ${summaryLabel(e)} do pagamento`}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+
+          {extras.length > 0 ? (
+            <div style={styles.groupTotalRow}>
+              <span style={styles.totalLabel}>Total do grupo</span>
+              <span style={styles.totalAmount} className="tj-tnum">
+                {formatBRL(groupTotal)}
+              </span>
+            </div>
+          ) : null}
+
+          <button type="button" onClick={openPicker} style={styles.addRow} className="tj-press" aria-expanded={showPicker}>
+            + Adicionar conta a este pagamento
+          </button>
+
+          {showPicker ? (
+            pickerTargets === null ? (
+              <p style={styles.pickerEmpty} aria-live="polite">
+                Carregando contas abertas…
+              </p>
+            ) : pickerTargets.length === 0 ? (
+              <p style={styles.pickerEmpty}>Nenhuma outra conta aberta para agrupar.</p>
+            ) : (
+              <div style={styles.pickerGrid} aria-label="Conta para agrupar">
+                {pickerTargets.map((t) => (
+                  <Button key={t.id} variant="secondary" style={styles.pickerBtn} onClick={() => addExtra(t)}>
+                    {`${summaryLabel(t)} · ${formatBRL(t.total)}`}
+                  </Button>
+                ))}
+              </div>
+            )
+          ) : null}
         </Card>
 
         {/* Editor de tenders */}
@@ -265,6 +346,10 @@ const TAB_LABEL: Record<string, string> = {
 };
 
 function accountLabel(a: AccountDto): string {
+  return `${TAB_LABEL[a.tabType] ?? a.tabType} ${a.number}`;
+}
+
+function summaryLabel(a: AccountSummaryDto): string {
   return `${TAB_LABEL[a.tabType] ?? a.tabType} ${a.number}`;
 }
 
@@ -371,6 +456,35 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 'var(--tj-radius-input)',
     cursor: 'pointer',
   },
+
+  // Agrupamento (F-5)
+  groupRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 'var(--tj-space-2)',
+    padding: 'var(--tj-space-1) 0',
+    borderTop: '1px solid var(--tj-hairline)',
+    marginTop: 'var(--tj-space-2)',
+  },
+  groupLabel: { flex: 1, fontSize: '15px', fontWeight: 500, color: 'var(--tj-body)' },
+  groupValue: { fontSize: '15px', fontWeight: 600, color: 'var(--tj-ink)' },
+  groupTotalRow: {
+    display: 'flex',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    paddingTop: 'var(--tj-space-2)',
+    marginTop: 'var(--tj-space-2)',
+    borderTop: '1px solid var(--tj-hairline-strong)',
+    marginBottom: 'var(--tj-space-3)',
+  },
+  pickerEmpty: { margin: 'var(--tj-space-2) 0 0', fontSize: '14px', color: 'var(--tj-muted)' },
+  pickerGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))',
+    gap: 'var(--tj-space-2)',
+    marginTop: 'var(--tj-space-2)',
+  },
+  pickerBtn: { minHeight: '44px', padding: '0 var(--tj-space-3)', fontSize: '14px' },
 
   remainingRow: {
     display: 'flex',

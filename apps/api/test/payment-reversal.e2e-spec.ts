@@ -197,6 +197,40 @@ describe('Payment reversal — estorno (e2e, serial)', () => {
     await auth(request(server()).post(`/api/accounts/${accountId}/cancel`).send({ reason: 'e2e' })).expect(201);
   });
 
+  it('grupo de 2 contas (F-5, RB-035/036): total = soma-com-desconto; estorno reabre AMBAS (RB-050)', async () => {
+    // conta 38: 1 item (10) − desconto FIXED 5 → 5,00 · conta 39: 1 item (10) → 10,00
+    const a = await auth(request(server()).post('/api/accounts').send({ tabType: 'COMANDA', number: 38 })).expect(201);
+    await auth(request(server()).post(`/api/accounts/${a.body.id}/items`).send({ items: [{ productId: P_UNIT, quantity: 1 }] })).expect(201);
+    await auth(request(server()).post(`/api/accounts/${a.body.id}/discount`).send({ type: 'FIXED', value: '5.00' })).expect(201);
+    const b = await auth(request(server()).post('/api/accounts').send({ tabType: 'COMANDA', number: 39 })).expect(201);
+    await auth(request(server()).post(`/api/accounts/${b.body.id}/items`).send({ items: [{ productId: P_UNIT, quantity: 1 }] })).expect(201);
+
+    // duplicado no array → 400 (ArrayUnique)
+    await auth(request(server()).post('/api/payments').send({
+      accountIds: [a.body.id, a.body.id],
+      tenders: [{ method: 'CASH', amount: '10.00' }],
+    })).expect(400);
+
+    const pay = await auth(request(server()).post('/api/payments').send({
+      accountIds: [a.body.id, b.body.id],
+      tenders: [{ method: 'CASH', amount: '15.00' }],
+    })).expect(201);
+    expect(pay.body).toMatchObject({ total: '15.00', status: 'SETTLED' }); // 5 + 10 (RB-036)
+
+    const paidA = await prisma.account.findUniqueOrThrow({ where: { id: a.body.id } });
+    const paidB = await prisma.account.findUniqueOrThrow({ where: { id: b.body.id } });
+    expect([paidA.status, paidB.status]).toEqual(['PAID', 'PAID']);
+
+    // estorno do grupo: AMBAS voltam a OPEN (tudo-ou-nada)
+    await auth(request(server()).post(`/api/payments/${pay.body.id}/reverse`).send({ reason: 'grupo errado' })).expect(201);
+    const openA = await prisma.account.findUniqueOrThrow({ where: { id: a.body.id } });
+    const openB = await prisma.account.findUniqueOrThrow({ where: { id: b.body.id } });
+    expect([openA.status, openB.status]).toEqual(['OPEN', 'OPEN']);
+
+    await auth(request(server()).post(`/api/accounts/${a.body.id}/cancel`).send({ reason: 'e2e' })).expect(201);
+    await auth(request(server()).post(`/api/accounts/${b.body.id}/cancel`).send({ reason: 'e2e' })).expect(201);
+  });
+
   it('valida entrada: sem motivo → 400; sem header → 400; garçom → 403; inexistente → 404', async () => {
     const { paymentId, accountId } = await payAccount(37);
 

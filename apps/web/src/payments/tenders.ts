@@ -21,6 +21,11 @@ function fromCents(cents: number): string {
   return `${sign}${Math.floor(abs / 100)}.${String(abs % 100).padStart(2, '0')}`;
 }
 
+/** Total do grupo = Σ totais-com-desconto (RB-036) — centavos inteiros, sem float. */
+export function sumTotals(totals: string[]): string {
+  return fromCents(totals.reduce((acc, t) => acc + toCents(t), 0));
+}
+
 /** Falta a pagar = total − Σ tenders (string decimal canônica). */
 export function remaining(total: string, rows: TenderRow[]): string {
   const sum = rows.reduce((acc, r) => acc + toCents(r.amount), 0);
