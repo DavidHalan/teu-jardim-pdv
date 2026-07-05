@@ -394,6 +394,45 @@ export interface RegisterClosedDto {
 }
 
 // ----------------------------------------------------------------------------
+// Estoque simples (F-9 — RB-045/046/054): saldo DERIVADO da soma dos movimentos;
+// sem reserva/baixa por venda no MVP. Movimentos só pelo Administrador.
+// ----------------------------------------------------------------------------
+
+export enum StockMovementType {
+  IN = 'IN',
+  OUT = 'OUT',
+  ADJUST = 'ADJUST',
+}
+
+/** POST /stock/movements — IN/OUT: quantity > 0; ADJUST: assinada (≠ 0) e motivo obrigatório. */
+export interface StockMovementRequest {
+  productId: string;
+  type: StockMovementType;
+  quantity: string; // decimal string (até 3 casas — peso em kg usa fração)
+  reason?: string;
+}
+
+export interface StockMovementDto {
+  id: string;
+  productId: string;
+  type: StockMovementType;
+  quantity: string;
+  reason: string | null;
+  createdAt: string; // ISO 8601
+}
+
+/** GET /stock — produtos ativos com saldo derivado (0 sem movimento). */
+export interface StockBalanceRow {
+  productId: string;
+  productName: string;
+  categoryName: string;
+  balance: string; // Σ movimentos (IN − OUT ± ADJUST)
+}
+export interface StockBalanceResponse {
+  rows: StockBalanceRow[];
+}
+
+// ----------------------------------------------------------------------------
 // Auditoria — consulta (F-8 — RB-043/044): trilha imutável, Admin, read-only.
 // Event log (quem/quando/quê/motivo via metadata), NÃO diff de campos (A-R5).
 // ----------------------------------------------------------------------------

@@ -15,6 +15,7 @@ import { shiftApi } from '../shift/shift-api';
 import { paymentsApi } from '../payments/payments-api';
 import { ReportsPanel } from '../reports/ReportsPanel';
 import { AuditPanel } from '../audit/AuditPanel';
+import { StockPanel } from '../stock/StockPanel';
 import { formatBRL } from '../lib/money';
 import { ApiError } from '../lib/api';
 import { Alert, Button, Card, Segmented, StatusPill, TextField, ThemeToggle } from '../shared/ui';
@@ -36,8 +37,8 @@ export function Home(): React.JSX.Element {
   const [openingAmount, setOpeningAmount] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Gestor lê relatórios/auditoria sem operar caixa (RB-053a/044) — antes de abrir o caixa.
-  const [preScreen, setPreScreen] = useState<'form' | 'reports' | 'audit'>('form');
+  // Gestor lê relatórios/auditoria/estoque sem operar caixa (RB-053a/044/054).
+  const [preScreen, setPreScreen] = useState<'form' | 'reports' | 'audit' | 'stock'>('form');
 
   const canOperate = user?.role === Role.CASHIER || user?.role === Role.ADMIN;
 
@@ -109,8 +110,10 @@ export function Home(): React.JSX.Element {
                 </div>
                 {preScreen === 'reports' ? (
                   <ReportsPanel role={user?.role ?? Role.CASHIER} />
-                ) : (
+                ) : preScreen === 'audit' ? (
                   <AuditPanel />
+                ) : (
+                  <StockPanel />
                 )}
               </section>
             ) : (
@@ -123,6 +126,7 @@ export function Home(): React.JSX.Element {
                 onSubmit={openRegister}
                 onReports={() => setPreScreen('reports')}
                 onAudit={user?.role === Role.ADMIN ? () => setPreScreen('audit') : undefined}
+                onStock={user?.role === Role.ADMIN ? () => setPreScreen('stock') : undefined}
               />
             )
           ) : (
@@ -224,6 +228,7 @@ function OpenRegisterForm({
   onSubmit,
   onReports,
   onAudit,
+  onStock,
 }: {
   sessionName: string;
   openingAmount: string;
@@ -233,6 +238,7 @@ function OpenRegisterForm({
   onSubmit: (e: FormEvent<HTMLFormElement>) => void;
   onReports: () => void;
   onAudit?: () => void;
+  onStock?: () => void;
 }): React.JSX.Element {
   const id = useId();
   const hasError = error !== null;
@@ -272,6 +278,11 @@ function OpenRegisterForm({
           {onAudit ? (
             <Button variant="secondary" fullWidth onClick={onAudit} disabled={submitting}>
               Auditoria
+            </Button>
+          ) : null}
+          {onStock ? (
+            <Button variant="secondary" fullWidth onClick={onStock} disabled={submitting}>
+              Estoque
             </Button>
           ) : null}
         </form>
@@ -318,9 +329,9 @@ function Dashboard({
 }): React.JSX.Element {
   // Só um painel aberto por vez. Caixa movimenta, estorna, lê relatórios e fecha daqui.
   const [panel, setPanel] = useState<
-    'none' | 'cash' | 'payments' | 'reports' | 'audit' | 'register' | 'operation'
+    'none' | 'cash' | 'payments' | 'reports' | 'audit' | 'stock' | 'register' | 'operation'
   >('none');
-  const toggle = (p: 'cash' | 'payments' | 'reports' | 'audit' | 'register' | 'operation') =>
+  const toggle = (p: 'cash' | 'payments' | 'reports' | 'audit' | 'stock' | 'register' | 'operation') =>
     setPanel((cur) => (cur === p ? 'none' : p));
 
   return (
@@ -360,14 +371,24 @@ function Dashboard({
             Relatórios
           </Button>
           {role === Role.ADMIN ? (
-            <Button
-              variant="secondary"
-              style={styles.compactBtn}
-              onClick={() => toggle('audit')}
-              aria-expanded={panel === 'audit'}
-            >
-              Auditoria
-            </Button>
+            <>
+              <Button
+                variant="secondary"
+                style={styles.compactBtn}
+                onClick={() => toggle('audit')}
+                aria-expanded={panel === 'audit'}
+              >
+                Auditoria
+              </Button>
+              <Button
+                variant="secondary"
+                style={styles.compactBtn}
+                onClick={() => toggle('stock')}
+                aria-expanded={panel === 'stock'}
+              >
+                Estoque
+              </Button>
+            </>
           ) : null}
           <Button
             variant="secondary"
@@ -396,6 +417,8 @@ function Dashboard({
         <ReportsPanel role={role ?? Role.CASHIER} />
       ) : panel === 'audit' ? (
         <AuditPanel />
+      ) : panel === 'stock' ? (
+        <StockPanel />
       ) : panel === 'register' ? (
         <CloseRegisterPanel refresh={refresh} onDone={() => setPanel('none')} />
       ) : panel === 'operation' ? (
