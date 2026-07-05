@@ -13,6 +13,7 @@ import { useAuth } from '../auth/AuthContext';
 import { useShift } from '../shift/useShift';
 import { shiftApi } from '../shift/shift-api';
 import { paymentsApi } from '../payments/payments-api';
+import { ReportsPanel } from '../reports/ReportsPanel';
 import { formatBRL } from '../lib/money';
 import { ApiError } from '../lib/api';
 import { Alert, Button, Card, Segmented, StatusPill, TextField, ThemeToggle } from '../shared/ui';
@@ -34,6 +35,8 @@ export function Home(): React.JSX.Element {
   const [openingAmount, setOpeningAmount] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Gestor lê relatórios sem operar caixa (RB-053a) — acessível antes de abrir o caixa.
+  const [showReports, setShowReports] = useState(false);
 
   const canOperate = user?.role === Role.CASHIER || user?.role === Role.ADMIN;
 
@@ -96,19 +99,31 @@ export function Home(): React.JSX.Element {
           )
         ) : !register ? (
           canOperate ? (
-            <OpenRegisterForm
-              sessionName={session.name}
-              openingAmount={openingAmount}
-              onAmount={setOpeningAmount}
-              submitting={submitting}
-              error={error}
-              onSubmit={openRegister}
-            />
+            showReports ? (
+              <section style={styles.dashboard} aria-label="Relatórios">
+                <div style={styles.turnoActions}>
+                  <Button variant="secondary" style={styles.compactBtn} onClick={() => setShowReports(false)}>
+                    ← Voltar
+                  </Button>
+                </div>
+                <ReportsPanel role={user?.role ?? Role.CASHIER} />
+              </section>
+            ) : (
+              <OpenRegisterForm
+                sessionName={session.name}
+                openingAmount={openingAmount}
+                onAmount={setOpeningAmount}
+                submitting={submitting}
+                error={error}
+                onSubmit={openRegister}
+                onReports={() => setShowReports(true)}
+              />
+            )
           ) : (
             <EmployeeLaunch sessionName={session.name} />
           )
         ) : (
-          <Dashboard session={session} register={register} refresh={refresh} />
+          <Dashboard session={session} register={register} refresh={refresh} role={user?.role} />
         )}
       </main>
     </div>
@@ -201,6 +216,7 @@ function OpenRegisterForm({
   submitting,
   error,
   onSubmit,
+  onReports,
 }: {
   sessionName: string;
   openingAmount: string;
@@ -208,6 +224,7 @@ function OpenRegisterForm({
   submitting: boolean;
   error: string | null;
   onSubmit: (e: FormEvent<HTMLFormElement>) => void;
+  onReports: () => void;
 }): React.JSX.Element {
   const id = useId();
   const hasError = error !== null;
@@ -240,6 +257,9 @@ function OpenRegisterForm({
           {hasError ? <Alert id={`${id}-err`}>{error}</Alert> : null}
           <Button type="submit" busy={submitting} fullWidth>
             {submitting ? 'Abrindo…' : 'Abrir caixa'}
+          </Button>
+          <Button variant="secondary" fullWidth onClick={onReports} disabled={submitting}>
+            Ver relatórios
           </Button>
         </form>
       </Card>
@@ -276,14 +296,16 @@ function Dashboard({
   session,
   register,
   refresh,
+  role,
 }: {
   session: { name: string; openedAt: string };
   register: { openingAmount: string; openedAt: string };
   refresh: () => Promise<void>;
+  role?: Role;
 }): React.JSX.Element {
-  // Só um painel aberto por vez. Caixa movimenta, estorna e fecha daqui (RB-011/048/052/007).
-  const [panel, setPanel] = useState<'none' | 'cash' | 'payments' | 'register' | 'operation'>('none');
-  const toggle = (p: 'cash' | 'payments' | 'register' | 'operation') =>
+  // Só um painel aberto por vez. Caixa movimenta, estorna, lê relatórios e fecha daqui.
+  const [panel, setPanel] = useState<'none' | 'cash' | 'payments' | 'reports' | 'register' | 'operation'>('none');
+  const toggle = (p: 'cash' | 'payments' | 'reports' | 'register' | 'operation') =>
     setPanel((cur) => (cur === p ? 'none' : p));
 
   return (
@@ -317,6 +339,14 @@ function Dashboard({
           <Button
             variant="secondary"
             style={styles.compactBtn}
+            onClick={() => toggle('reports')}
+            aria-expanded={panel === 'reports'}
+          >
+            Relatórios
+          </Button>
+          <Button
+            variant="secondary"
+            style={styles.compactBtn}
             onClick={() => toggle('register')}
             aria-expanded={panel === 'register'}
           >
@@ -337,6 +367,8 @@ function Dashboard({
         <CashMovementsPanel />
       ) : panel === 'payments' ? (
         <PaymentsPanel />
+      ) : panel === 'reports' ? (
+        <ReportsPanel role={role ?? Role.CASHIER} />
       ) : panel === 'register' ? (
         <CloseRegisterPanel refresh={refresh} onDone={() => setPanel('none')} />
       ) : panel === 'operation' ? (

@@ -15,7 +15,7 @@ import globals from 'globals';
 const relPatterns = (suffix) =>
   ['', './', '../', '../../', '../../../', '../../../../'].map((pre) => `${pre}${suffix}`);
 
-const WEB_FEATURES = ['accounts', 'auth', 'catalog', 'payments', 'print-queue', 'shift'];
+const WEB_FEATURES = ['accounts', 'auth', 'catalog', 'payments', 'print-queue', 'reports', 'shift'];
 
 const noWebFromApi = {
   group: ['**/apps/web/**', '@teu-jardim/web', ...relPatterns('web/**')],

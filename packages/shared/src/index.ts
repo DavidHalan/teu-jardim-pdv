@@ -394,6 +394,84 @@ export interface RegisterClosedDto {
 }
 
 // ----------------------------------------------------------------------------
+// Relatórios (F-7 — RB-053/053a): 5 projeções query-time por operação.
+// Money = string decimal (RB-047). MVP = JSON; ?format=csv reservado (futuro).
+// ----------------------------------------------------------------------------
+
+export type ReportKind =
+  | 'closing'
+  | 'sales-by-method'
+  | 'sales-by-product'
+  | 'exceptions'
+  | 'ticket';
+
+/** (1) Fechamento + diferença por caixa. Caixa OPEN: esperado corrente, contado/diferença null. */
+export interface ClosingReportRow {
+  registerId: string;
+  operatorName: string;
+  status: OpenClosedStatus;
+  openingAmount: string;
+  cashReceipts: string;
+  cashSupplies: string;
+  cashWithdrawals: string;
+  cashReversals: string;
+  expectedAmount: string;
+  countedAmount: string | null;
+  difference: string | null;
+}
+export interface ClosingReport {
+  businessSessionId: string;
+  registers: ClosingReportRow[];
+}
+
+/** (2) Vendas por forma de pagamento — tenders de pagamentos SETTLED (estornado sai). */
+export interface SalesByMethodRow {
+  method: PaymentMethod;
+  total: string;
+}
+export interface SalesByMethodReport {
+  businessSessionId: string;
+  rows: SalesByMethodRow[];
+  total: string;
+}
+
+/** (3) Vendas por produto/categoria — itens ativos de contas PAID, ranking por R$ desc. */
+export interface SalesByProductRow {
+  productId: string;
+  productName: string;
+  categoryName: string;
+  quantity: number; // unidades (UNIT)
+  weightGrams: number; // Σ gramas (WEIGHED); 0 quando UNIT
+  total: string;
+}
+export interface SalesByProductReport {
+  businessSessionId: string;
+  rows: SalesByProductRow[];
+}
+
+/** (4) Exceções — cancelamentos, descontos e estornos com operador e motivo (do AuditLog). */
+export type ExceptionType = 'ITEM_CANCELED' | 'ACCOUNT_CANCEL' | 'DISCOUNT_APPLIED' | 'PAYMENT_REVERSED';
+export interface ExceptionRow {
+  at: string; // ISO 8601
+  type: ExceptionType;
+  operatorName: string;
+  reason: string | null;
+  detail: string | null; // valor/contexto do metadata quando disponível
+}
+export interface ExceptionsReport {
+  businessSessionId: string;
+  rows: ExceptionRow[];
+}
+
+/** (5) Ticket médio por conta — contas PAID da operação. */
+export interface TicketReport {
+  businessSessionId: string;
+  accountCount: number;
+  revenue: string;
+  average: string;
+}
+
+// ----------------------------------------------------------------------------
 // Impressão de preparo (F-6 — RB-022/051, ADR-0012/0015/0020)
 // Fila no Postgres, dona = API; apps/print-service consome por poll e dá ACK.
 // ----------------------------------------------------------------------------

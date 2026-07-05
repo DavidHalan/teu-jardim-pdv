@@ -45,6 +45,7 @@ describe('Payment reversal — estorno (e2e, serial)', () => {
     await prisma.accountGroupMember.deleteMany({ where: { accountGroup: { businessSession: { name: SESSION_NAME } } } });
     await prisma.accountGroup.deleteMany({ where: { businessSession: { name: SESSION_NAME } } });
     await prisma.accountItem.deleteMany({ where: { account: { businessSession: { name: SESSION_NAME } } } });
+    await prisma.discount.deleteMany({ where: { account: { businessSession: { name: SESSION_NAME } } } });
     await prisma.account.deleteMany({ where: { businessSession: { name: SESSION_NAME } } });
     await prisma.cashMovement.deleteMany({ where: { register: { businessSession: { name: SESSION_NAME } } } });
     await prisma.register.deleteMany({ where: { businessSession: { name: SESSION_NAME } } });
