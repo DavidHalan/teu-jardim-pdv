@@ -1,80 +1,58 @@
 /*
- * Design tokens — Teu Jardim PDV (fonte: docs/DESIGN.md).
- * Cor em OKLCH (lei impeccable + DESIGN.md). Os valores OKLCH são conversão fiel
- * dos hex canônicos do DESIGN (sRGB→OKLab). Hex fica no comentário como referência.
+ * Design tokens v2 "Terminal" — Teu Jardim PDV (fonte: docs/DESIGN.md v2, 2026-07-07).
+ * Escola: precisão monocromática (Linear claro) + oliva do logo como único acento.
+ * Cor em OKLCH (conversão fiel sRGB→OKLab dos hex canônicos; hex no comentário).
  *
  * Dois níveis de nome:
- *   - canônicos (DESIGN-named): --tj-brand, --tj-canvas, --tj-ready…  → use em código novo.
- *   - legados (em uso nas telas atuais): --tj-olive, --tj-cream, --tj-cta… → aliases p/ os
- *     canônicos, mantidos para não quebrar as telas. Migram para o nome canônico no polish.
+ *   - canônicos v2: --tj-canvas, --tj-surface-1/2, --tj-accent, --tj-ok/warn/danger…
+ *     → use em TODO código novo (fatias D1+).
+ *   - legados v1 (em uso nas telas atuais): --tj-brand*, --tj-cta, --tj-ready*,
+ *     --tj-cooking*… → aliases para os canônicos v2, mantidos SÓ até a fatia D7
+ *     (remoção). Não usar em código novo.
  */
 :root {
-  /* ── Marca (derivada do logo) ─────────────────────────────────────────── */
-  --tj-brand:        oklch(0.649 0.0790 115.2); /* #8D955C — âncora oliva: borda ativa, acento */
-  --tj-brand-mid:    oklch(0.545 0.0667 115.7); /* #6E7547 — borda hover, estado intermediário */
-  --tj-brand-deep:   oklch(0.378 0.0514 120.4); /* #3E4626 — CTA primário, títulos, links (texto creme) */
-  --tj-brand-forest: oklch(0.250 0.0294 122.6); /* #1F2414 — bandas escuras, footer, KDS modular */
-  --tj-brand-pale:   oklch(0.928 0.0227 112.3); /* #E7E9D8 — tint selecionado/ativo, ring de foco */
-
-  /* ── Superfície ───────────────────────────────────────────────────────── */
-  --tj-canvas:          oklch(0.960 0.0134 97.4); /* #F4F2E8 — página (creme quente, NÃO branco) */
-  --tj-canvas-soft:     oklch(0.935 0.0174 99.6); /* #ECEADD — zonas / separadores */
-  --tj-surface:         oklch(0.987 0.0067 97.3); /* #FCFBF6 — cartão / input / tile */
-  --tj-hairline:        oklch(0.905 0.0190 96.9); /* #E3E0D2 — borda 1px / divisor padrão */
-  --tj-hairline-strong: oklch(0.640 0.0320 97.2); /* borda de controle ≥3:1 vs surface (a11y 1.4.11) */
+  /* ── Superfície (escada Linear, tintada de oliva) ─────────────────────── */
+  --tj-canvas:          oklch(0.991 0.0026 106.4); /* #FCFCFA — página, cartão */
+  --tj-surface-1:       oklch(0.969 0.0040 106.5); /* #F5F5F2 — sidebar, input, KPI, painel */
+  --tj-surface-2:       oklch(0.948 0.0053 106.5); /* #EEEEEA — tab ativa, hover, tecla */
+  --tj-hairline:        oklch(0.917 0.0067 106.5); /* #E4E4DF — borda/divisor padrão */
+  --tj-hairline-strong: oklch(0.859 0.0095 106.6); /* #D1D1CA — borda de controle */
 
   /* ── Tinta ────────────────────────────────────────────────────────────── */
-  --tj-ink:           oklch(0.218 0.0169 113.0); /* #1A1B12 — títulos / texto primário */
-  --tj-body:          oklch(0.391 0.0216 118.0); /* #44473A — corpo */
-  --tj-muted:         oklch(0.545 0.0230 116.4); /* #6F7263 — secundário / metadado */
-  --tj-faint:         oklch(0.585 0.0210 113.5); /* placeholder / caption / nº livre — ≥3:1 vs surface */
-  --tj-on-dark:       oklch(0.960 0.0134 97.4);  /* #F4F2E8 — texto sobre forest/brand-deep */
-  --tj-on-dark-muted: oklch(0.741 0.0533 117.4); /* #A8B08A — secundário sobre superfície escura */
+  --tj-ink:   oklch(0.214 0.0115 115.1); /* #191A14 — título, dinheiro, nº em uso */
+  --tj-body:  oklch(0.463 0.0160 116.2); /* #585A50 — corpo, rótulo, nav */
+  --tj-muted: oklch(0.546 0.0171 119.4); /* #6F7267 — metadado (AA 4.78 no canvas) */
+  --tj-faint: oklch(0.652 0.0147 116.0); /* #8F9187 — nº livre, placeholder (não-essencial) */
 
-  /* ── Status (glanceável — sempre cor + forma/rótulo, nunca matiz só) ───── */
-  --tj-ready:        oklch(0.620 0.1478 150.4); /* #2F9E54 */
-  --tj-ready-text:   oklch(0.477 0.1144 150.1); /* #1E6E38 */
-  --tj-ready-pale:   oklch(0.924 0.0342 152.0); /* #D6EDDB */
-  --tj-cooking:      oklch(0.700 0.1455 67.4);  /* #D98A1F */
-  --tj-cooking-text: oklch(0.495 0.1048 64.4);  /* #8A5310 */
-  --tj-cooking-pale: oklch(0.931 0.0385 80.0);  /* #F6E6CC */
-  --tj-pending:      oklch(0.634 0.0205 113.6); /* #8A8C7E */
-  --tj-pending-text: oklch(0.441 0.0162 116.3); /* #52544A */
-  --tj-pending-pale: oklch(0.944 0.0093 106.6); /* #EDEDE6 */
-  --tj-danger:       oklch(0.571 0.1680 33.0);  /* #C7472E — dot/acento */
-  --tj-danger-solid: oklch(0.470 0.1650 32.0);  /* fill de botão destrutivo (texto claro, AA nos 2 temas) */
-  --tj-danger-text:  oklch(0.481 0.1320 34.0);  /* #9A3B26 — texto/borda */
-  --tj-danger-pale:  oklch(0.907 0.0315 40.1);  /* #F4DAD1 */
-  --tj-info:         oklch(0.518 0.0730 239.5); /* #3E6E8E */
-  --tj-info-text:    oklch(0.440 0.0627 234.5); /* #2C5870 */
-  --tj-info-pale:    oklch(0.926 0.0145 224.5); /* #DDE9EE */
+  /* ── Acento (oliva do logo — ÚNICO acento estrutural) ─────────────────── */
+  --tj-accent:      oklch(0.548 0.0762 117.7); /* #6D7742 — CTA, anel em-uso, seleção, foco */
+  --tj-accent-deep: oklch(0.450 0.0633 117.9); /* #525A30 — texto sobre tint, hover CTA */
+  --tj-accent-tint: oklch(0.953 0.0186 113.3); /* #EFF1E3 — fundo de item ativo */
+  --tj-on-accent:   oklch(0.991 0.0026 106.4); /* texto sobre accent (branco warm) */
 
-  /* ── Secundárias da marca (terroso — empty state / ilustração / cupom) ─── */
-  --tj-clay:      oklch(0.596 0.1134 47.6); /* #B5683F — terracota / barro */
-  --tj-clay-pale: oklch(0.897 0.0319 62.8); /* #EDD9C8 — tint quente */
-  --tj-wood:      oklch(0.439 0.0613 60.5); /* #6B4A2E — madeira / cabeçalho de cupom */
-  --tj-bloom:     oklch(0.571 0.1545 23.3); /* #C24A4A — flor: SÓ ilustração, nunca UI */
+  /* ── Status / rampa de dinheiro (sempre cor + rótulo) ─────────────────── */
+  --tj-ok:          oklch(0.511 0.1246 152.3); /* #177A41 */
+  --tj-ok-tint:     oklch(0.943 0.0184 150.6); /* #E4F0E6 */
+  --tj-warn:        oklch(0.529 0.1176 63.4);  /* #9A5A08 */
+  --tj-warn-tint:   oklch(0.946 0.0262 82.4);  /* #F6ECDA */
+  --tj-danger:      oklch(0.507 0.1682 30.6);  /* #B13020 */
+  --tj-danger-tint: oklch(0.916 0.0242 33.5);  /* #F3DED9 */
+  --tj-info:        oklch(0.517 0.0701 238.2); /* #3F6E8C */
+  --tj-info-tint:   oklch(0.935 0.0126 236.6); /* #E2EBF1 */
 
-  /* ── Aliases legados (em uso nas telas; migram no polish) ─────────────── */
-  --tj-olive:        var(--tj-brand);
-  --tj-olive-mid:    var(--tj-brand-mid);
-  --tj-cream:        var(--tj-canvas);
-  --tj-cta:          var(--tj-brand-deep);
-  --tj-cta-contrast: var(--tj-on-dark);
-  --tj-pale:         var(--tj-brand-pale);
-
-  /* foco de teclado — forte nos 2 temas (brand-deep: ~5:1 no claro, ~7:1 no escuro,
-     sobre surface e canvas). Substitui o halo brand-pale, que sumia (1.2–1.4:1). */
-  --tj-focus:        var(--tj-brand-deep);
+  /* foco de teclado — accent nos 2 temas (halo via accent-tint) */
+  --tj-focus: var(--tj-accent);
 
   /* ── Tipografia ───────────────────────────────────────────────────────── */
-  /* Inter em tudo (decisão do dono 2026-06-25): sem serifa de display. Hierarquia
-     por peso + tamanho. --tj-font-display fica como alias de transição (telas ainda
-     o referenciam); colapsa em --tj-font-ui no polish. */
-  --tj-font-ui: 'Inter', system-ui, sans-serif;   /* base: UI, títulos, números, marca */
-  --tj-font-display: var(--tj-font-ui);
+  --tj-font-ui: 'Inter', system-ui, sans-serif;
+  --tj-font-mono: ui-monospace, Consolas, monospace; /* kbd, status-bar, quantidade */
+  --tj-font-display: var(--tj-font-ui); /* alias legado */
 
-  /* escala (DESIGN.md) — px fixos (product register: sem fluid type) */
+  /* escala v2 (novos; telas migram por fatia) */
+  --tj-fs-eyebrow: 10.5px;
+  --tj-fs-ui: 13.5px;
+  --tj-fs-numeric-lg: 24px;
+  /* escala legada v1 (em uso nas telas atuais; some na D7) */
   --tj-fs-display-xl: 40px;
   --tj-fs-display-lg: 30px;
   --tj-fs-title: 20px;
@@ -87,12 +65,11 @@
   --tj-fs-numeric-xl: 32px;
 
   /* ── Espaçamento ──────────────────────────────────────────────────────── */
-  /* semântico (DESIGN.md) — use em código novo */
   --tj-space-xxs: 4px;
   --tj-space-xs: 8px;
   --tj-space-sm: 12px;
   --tj-space-md: 16px;
-  --tj-space-lg: 24px;
+  --tj-space-lg: 22px; /* v2: padding horizontal padrão de área */
   --tj-space-xl: 32px;
   --tj-space-xxl: 48px;
   /* legado numérico (em uso nas telas; NÃO remapear — mantém layout) */
@@ -102,65 +79,105 @@
   --tj-space-4: 24px;
   --tj-space-5: 40px;
 
-  /* ── Raio ─────────────────────────────────────────────────────────────── */
-  --tj-radius-xs: 6px;   /* input / chip / tag */
-  --tj-radius-sm: 8px;
-  --tj-radius-md: 10px;  /* cartão / comanda-tile / kds-card */
-  --tj-radius-lg: 12px;
-  --tj-radius-pill: 9999px; /* botões / status-pill */
-  /* aliases legados */
+  /* ── Raio (v2: 4/6/8 + pill só em chip/status-pill) ───────────────────── */
+  --tj-radius-xs: 4px;   /* kbd */
+  --tj-radius-sm: 6px;   /* tab ativa, item de nav */
+  --tj-radius-md: 8px;   /* tile, input, botão, cartão, KPI — canônico */
+  --tj-radius-lg: 10px;
+  --tj-radius-pill: 9999px; /* filter-chip / status-pill */
   --tj-radius: var(--tj-radius-md);
-  --tj-radius-input: var(--tj-radius-xs);
+  --tj-radius-input: var(--tj-radius-md);
 
-  /* ── Elevação (hairline + sombra sussurrada, tintada de ink) ──────────── */
-  --tj-shadow-card: 0 1px 2px oklch(0.218 0.0169 113 / 0.06);
-  --tj-shadow-pop:  0 -8px 32px oklch(0.218 0.0169 113 / 0.18);
-  --tj-shadow-hover: 0 2px 8px oklch(0.218 0.0169 113 / 0.08);
-  --tj-scrim: oklch(0.218 0.0169 113 / 0.40); /* backdrop de modal/sheet */
+  /* ── Elevação (v2: hairline; sombra SÓ em overlay real) ───────────────── */
+  --tj-shadow-card: none;
+  --tj-shadow-hover: none;
+  --tj-shadow-pop: 0 -8px 32px oklch(0.214 0.0115 115 / 0.16); /* sheet/menu */
+  --tj-scrim: oklch(0.214 0.0115 115 / 0.40);
 
   /* ── Movimento ────────────────────────────────────────────────────────── */
-  --tj-ease-out: cubic-bezier(0.22, 1, 0.36, 1); /* ease-out-quint */
+  --tj-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* ── Aliases legados v1 → v2 (REMOVER na fatia D7) ────────────────────── */
+  --tj-brand:        var(--tj-accent);
+  --tj-brand-mid:    var(--tj-accent);
+  --tj-brand-deep:   var(--tj-accent);      /* CTA v1 → CTA v2 */
+  --tj-brand-forest: var(--tj-ink);
+  --tj-brand-pale:   var(--tj-accent-tint);
+  --tj-canvas-soft:  var(--tj-surface-1);
+  --tj-surface:      var(--tj-canvas);      /* cartão v1 (quase-branco) → canvas v2 + hairline */
+  --tj-on-dark:       var(--tj-on-accent);
+  --tj-on-dark-muted: oklch(0.775 0.0154 111.0);
+  --tj-olive:        var(--tj-accent);
+  --tj-olive-mid:    var(--tj-accent);
+  --tj-cream:        var(--tj-canvas);
+  --tj-cta:          var(--tj-accent);
+  --tj-cta-contrast: var(--tj-on-accent);
+  --tj-pale:         var(--tj-accent-tint);
+  /* status v1 (dot/texto/pale) → v2 (solid/tint) */
+  --tj-ready:        var(--tj-ok);
+  --tj-ready-text:   var(--tj-ok);
+  --tj-ready-pale:   var(--tj-ok-tint);
+  --tj-cooking:      var(--tj-warn);
+  --tj-cooking-text: var(--tj-warn);
+  --tj-cooking-pale: var(--tj-warn-tint);
+  --tj-pending:      var(--tj-muted);
+  --tj-pending-text: var(--tj-body);
+  --tj-pending-pale: var(--tj-surface-2);
+  --tj-danger-solid: var(--tj-danger);
+  --tj-danger-text:  var(--tj-danger);
+  --tj-danger-pale:  var(--tj-danger-tint);
+  --tj-info-text:    var(--tj-info);
+  --tj-info-pale:    var(--tj-info-tint);
+  /* terroso v1 (empty state/ilustração) — v2 não tem família terrosa */
+  --tj-clay:      var(--tj-warn);
+  --tj-clay-pale: var(--tj-warn-tint);
+  --tj-wood:      var(--tj-body);
+  --tj-bloom:     var(--tj-danger);
 }
 
 /*
- * Tema escuro (decisão do dono 2026-06-26: app passa a ter claro + escuro, claro=padrão,
- * preferência persiste). Aplicado via [data-theme="dark"] no <html> (no-flash em index.html).
- * Só sobrescreve VALORES dos tokens semânticos → telas/primitives tematizam sem mudar código.
- * Família neutra warm-olive (forest), texto warm near-white. Pares cor/fundo preservam AA nos 2 temas.
+ * Tema escuro v2 — derivado: mesma escada de superfícies invertida (Linear é nativo
+ * escuro; conversão direta). Aplicado via [data-theme="dark"] (no-flash em index.html,
+ * localStorage 'tj.theme' — infra v1 mantida). Só sobrescreve VALORES dos canônicos;
+ * aliases legados resolvem via var() automaticamente.
+ * Regra do DESIGN v2: CTA no escuro = accent CLARO com texto INK (7.8:1), não branco.
  */
 :root[data-theme='dark'] {
-  /* superfície (forest escuro warm) — canvas mais fundo p/ cartão (surface) separar melhor */
-  --tj-canvas:          oklch(0.185 0.012 122);
-  --tj-canvas-soft:     oklch(0.235 0.014 122);
-  --tj-surface:         oklch(0.262 0.015 122);
-  --tj-hairline:        oklch(0.335 0.016 120);
-  --tj-hairline-strong: oklch(0.560 0.022 118); /* ≥3:1 vs surface — borda de controle visível no escuro */
+  /* superfície */
+  --tj-canvas:          oklch(0.184 0.0062 122.0); /* #121310 */
+  --tj-surface-1:       oklch(0.216 0.0059 121.9); /* #191A17 */
+  --tj-surface-2:       oklch(0.245 0.0076 118.4); /* #20211D */
+  --tj-hairline:        oklch(0.286 0.0090 116.2); /* #2A2B26 */
+  --tj-hairline-strong: oklch(0.352 0.0138 118.5); /* #3A3C34 */
 
-  /* tinta (warm near-white → faint) */
-  --tj-ink:   oklch(0.945 0.012 105);
-  --tj-body:  oklch(0.822 0.016 110);
-  --tj-muted: oklch(0.668 0.020 113);
-  --tj-faint: oklch(0.620 0.020 115); /* nº de comanda livre é conteúdo — ≥3:1 vs surface no escuro */
+  /* tinta */
+  --tj-ink:   oklch(0.941 0.0080 106.6); /* #ECECE6 */
+  --tj-body:  oklch(0.775 0.0154 111.0); /* #B6B7AC — 9.2:1 */
+  --tj-muted: oklch(0.612 0.0164 115.2); /* #83857A — 4.97:1 */
+  --tj-faint: oklch(0.540 0.0160 115.0);
 
-  /* marca — no escuro o "deep" vira oliva CLARO (serve a texto E a fill com texto escuro);
-     cta-contrast passa a escuro (texto sobre o fill oliva-claro). on-dark segue claro. */
-  --tj-brand:        oklch(0.720 0.085 117);
-  --tj-brand-mid:    oklch(0.620 0.075 118);
-  --tj-brand-deep:   oklch(0.760 0.090 119);
-  --tj-brand-pale:   oklch(0.320 0.050 121);
-  --tj-cta-contrast: oklch(0.205 0.018 122);
+  /* acento — clareia; texto sobre ele INVERTE para ink escuro */
+  --tj-accent:      oklch(0.742 0.0891 116.3); /* #A8B371 */
+  --tj-accent-deep: oklch(0.800 0.0900 116.0); /* texto oliva sobre tint escuro */
+  --tj-accent-tint: oklch(0.276 0.0253 121.0); /* #262A1C */
+  --tj-on-accent:   oklch(0.214 0.0115 115.1); /* ink claro-tema (7.8:1 sobre accent) */
 
-  /* status — fills viram tints escuros, textos clareiam (AA sobre os tints) */
-  --tj-ready-text:   oklch(0.825 0.130 151); --tj-ready-pale:   oklch(0.330 0.066 152);
-  --tj-cooking-text: oklch(0.830 0.120 75);  --tj-cooking-pale: oklch(0.335 0.060 67);
-  --tj-pending-text: oklch(0.780 0.015 112); --tj-pending-pale: oklch(0.320 0.012 116);
-  --tj-danger-text:  oklch(0.800 0.130 33);  --tj-danger-pale:  oklch(0.335 0.075 33);
-  --tj-info-text:    oklch(0.820 0.090 232); --tj-info-pale:    oklch(0.330 0.052 235);
-  --tj-danger:       oklch(0.620 0.170 33);
+  /* status — texto clareia, tint escurece (calibrado D0; validar live) */
+  --tj-ok:          oklch(0.780 0.1300 152.0);
+  --tj-ok-tint:     oklch(0.300 0.0550 152.0);
+  --tj-warn:        oklch(0.800 0.1150 75.0);
+  --tj-warn-tint:   oklch(0.310 0.0520 70.0);
+  --tj-danger:      oklch(0.760 0.1350 30.0);
+  --tj-danger-tint: oklch(0.310 0.0650 33.0);
+  --tj-info:        oklch(0.800 0.0850 232.0);
+  --tj-info-tint:   oklch(0.300 0.0450 236.0);
 
-  /* elevação no escuro: sombra mais densa (hairline carrega o resto) */
-  --tj-shadow-card:  0 1px 2px oklch(0 0 0 / 0.40);
-  --tj-shadow-pop:   0 -8px 32px oklch(0 0 0 / 0.55);
-  --tj-shadow-hover: 0 2px 8px oklch(0 0 0 / 0.45);
-  --tj-scrim: oklch(0 0 0 / 0.62); /* backdrop mais opaco no escuro (canvas já é escuro) */
+  /* legados que não podem seguir o var() padrão no escuro */
+  --tj-on-dark-muted: oklch(0.775 0.0154 111.0);
+  --tj-pending-text:  var(--tj-body);
+  --tj-pending-pale:  var(--tj-surface-2);
+
+  /* elevação: overlay real só */
+  --tj-shadow-pop: 0 -8px 32px oklch(0 0 0 / 0.55);
+  --tj-scrim: oklch(0 0 0 / 0.62);
 }
