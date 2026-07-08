@@ -30,7 +30,7 @@ const base: CSSProperties = {
 };
 
 const tones: Record<Tone, CSSProperties> = {
-  error: { color: 'var(--tj-danger-text)', background: 'var(--tj-danger-pale)' },
-  warn: { color: 'var(--tj-cooking-text)', background: 'var(--tj-cooking-pale)' },
-  info: { color: 'var(--tj-info-text)', background: 'var(--tj-info-pale)' },
+  error: { color: 'var(--tj-danger)', background: 'var(--tj-danger-tint)' },
+  warn: { color: 'var(--tj-warn)', background: 'var(--tj-warn-tint)' },
+  info: { color: 'var(--tj-info)', background: 'var(--tj-info-tint)' },
 };

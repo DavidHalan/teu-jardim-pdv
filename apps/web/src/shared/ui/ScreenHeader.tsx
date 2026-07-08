@@ -50,7 +50,7 @@ const bar: CSSProperties = {
   justifyContent: 'space-between',
   gap: 'var(--tj-space-3)',
   padding: 'var(--tj-space-2) var(--tj-space-4)',
-  background: 'var(--tj-surface)',
+  background: 'var(--tj-surface-1)',
   borderBottom: '1px solid var(--tj-hairline)',
 };
 
@@ -74,7 +74,7 @@ const backBtn: CSSProperties = {
   color: 'var(--tj-body)',
   background: 'transparent',
   border: 'none',
-  borderRadius: 'var(--tj-radius-pill)',
+  borderRadius: 'var(--tj-radius-md)',
   cursor: 'pointer',
 };
 

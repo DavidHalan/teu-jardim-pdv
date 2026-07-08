@@ -36,11 +36,12 @@ const base: CSSProperties = {
 
 const dotStyle: CSSProperties = { width: '8px', height: '8px', borderRadius: '9999px' };
 
+// Nomes de tone preservam a API das telas; valores migram para os tokens v2 (tint + texto).
 const tones: Record<Tone, { text: string; pale: string; dot: string }> = {
-  brand: { text: 'var(--tj-brand-deep)', pale: 'var(--tj-brand-pale)', dot: 'var(--tj-brand)' },
-  ready: { text: 'var(--tj-ready-text)', pale: 'var(--tj-ready-pale)', dot: 'var(--tj-ready)' },
-  cooking: { text: 'var(--tj-cooking-text)', pale: 'var(--tj-cooking-pale)', dot: 'var(--tj-cooking)' },
-  pending: { text: 'var(--tj-pending-text)', pale: 'var(--tj-pending-pale)', dot: 'var(--tj-pending)' },
-  danger: { text: 'var(--tj-danger-text)', pale: 'var(--tj-danger-pale)', dot: 'var(--tj-danger)' },
-  info: { text: 'var(--tj-info-text)', pale: 'var(--tj-info-pale)', dot: 'var(--tj-info)' },
+  brand: { text: 'var(--tj-accent-deep)', pale: 'var(--tj-accent-tint)', dot: 'var(--tj-accent)' },
+  ready: { text: 'var(--tj-ok)', pale: 'var(--tj-ok-tint)', dot: 'var(--tj-ok)' },
+  cooking: { text: 'var(--tj-warn)', pale: 'var(--tj-warn-tint)', dot: 'var(--tj-warn)' },
+  pending: { text: 'var(--tj-body)', pale: 'var(--tj-surface-2)', dot: 'var(--tj-muted)' },
+  danger: { text: 'var(--tj-danger)', pale: 'var(--tj-danger-tint)', dot: 'var(--tj-danger)' },
+  info: { text: 'var(--tj-info)', pale: 'var(--tj-info-tint)', dot: 'var(--tj-info)' },
 };

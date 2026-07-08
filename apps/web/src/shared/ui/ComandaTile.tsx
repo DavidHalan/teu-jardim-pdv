@@ -54,13 +54,19 @@ const tile: CSSProperties = {
   textAlign: 'left',
   minHeight: '108px',
   padding: 'var(--tj-space-3)',
-  background: 'var(--tj-surface)',
-  border: '1px solid var(--tj-hairline)',
+  background: 'var(--tj-canvas)',
+  borderWidth: '1px',
+  borderStyle: 'solid',
+  borderColor: 'var(--tj-hairline)',
   borderRadius: 'var(--tj-radius-md)',
   cursor: 'pointer',
 };
 
-const tileInUse: CSSProperties = { border: '1.5px solid var(--tj-brand)' };
+// Em uso = anel accent 2px (borda + inset, sem deslocar layout) — v2.
+const tileInUse: CSSProperties = {
+  borderColor: 'var(--tj-accent)',
+  boxShadow: 'inset 0 0 0 1px var(--tj-accent)',
+};
 
 const kindStyle: CSSProperties = {
   fontSize: '11px',

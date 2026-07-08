@@ -1,9 +1,9 @@
 import type { CSSProperties } from 'react';
 
 /**
- * Seletor segmentado (single-select) do design system — afordância única p/ escolher
- * 1 de N (tipo de conta, tipo de desconto, forma de pagamento). Padrão "track": trilho
- * canvas-soft + segmento selecionado em surface com borda oliva. Acessível: radiogroup.
+ * Seletor segmentado (single-select) do design system v2 — afordância única p/ escolher
+ * 1 de N (tipo de conta, área do caixa, forma de pagamento). Trilho surface-1 + hairline;
+ * segmento selecionado em accent-tint (texto accent-deep). Acessível: radiogroup.
  */
 interface Option<T extends string> {
   value: T;
@@ -54,28 +54,27 @@ export function Segmented<T extends string>({
 
 const track: CSSProperties = {
   display: 'grid',
-  gap: '6px',
+  gap: '4px',
   padding: '4px',
-  background: 'var(--tj-canvas-soft)',
-  borderRadius: 'var(--tj-radius-input)',
+  background: 'var(--tj-surface-1)',
+  border: '1px solid var(--tj-hairline)',
+  borderRadius: 'var(--tj-radius-md)',
 };
 
 const segment: CSSProperties = {
   minHeight: '44px',
   padding: '0 var(--tj-space-2)',
   fontFamily: 'var(--tj-font-ui)',
-  fontSize: '15px',
+  fontSize: '14px',
   fontWeight: 600,
   color: 'var(--tj-muted)',
   background: 'transparent',
   border: '1px solid transparent',
-  borderRadius: 'var(--tj-radius-input)',
+  borderRadius: 'var(--tj-radius-sm)',
   cursor: 'pointer',
 };
 
 const segmentOn: CSSProperties = {
-  color: 'var(--tj-brand-deep)',
-  background: 'var(--tj-surface)',
-  borderColor: 'var(--tj-brand)',
-  boxShadow: 'var(--tj-shadow-card)',
+  color: 'var(--tj-accent-deep)',
+  background: 'var(--tj-accent-tint)',
 };

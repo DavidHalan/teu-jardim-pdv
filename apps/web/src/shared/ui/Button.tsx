@@ -1,9 +1,9 @@
 import type { ButtonHTMLAttributes, CSSProperties } from 'react';
 
 /**
- * Botão do design system (DESIGN.md): pill, Inter 600, toque ≥44px, press scale(0.97)
- * via classe `.tj-press` (base.css). Variantes cobrem o vocabulário das telas — não
- * redefinir botão inline. `busy` = ação em curso (cursor progress); `disabled` = bloqueado.
+ * Botão do design system (DESIGN.md v2): raio md, Inter 600, toque ≥44px, press scale(0.97)
+ * via classe `.tj-press` (base.css). Primary = accent; secondary = canvas + borda. Variantes
+ * cobrem o vocabulário das telas — não redefinir botão inline. `busy` = ação em curso; `disabled` = bloqueado.
  */
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'danger-ghost';
 
@@ -49,39 +49,41 @@ const base: CSSProperties = {
   alignItems: 'center',
   justifyContent: 'center',
   gap: 'var(--tj-space-2)',
-  minHeight: '48px',
+  minHeight: '44px',
   padding: '0 var(--tj-space-4)',
   fontFamily: 'var(--tj-font-ui)',
-  fontSize: '16px',
+  fontSize: '15px',
   fontWeight: 600,
   lineHeight: 1.2,
-  border: '1px solid transparent',
-  borderRadius: 'var(--tj-radius-pill)',
+  borderWidth: '1px',
+  borderStyle: 'solid',
+  borderColor: 'transparent',
+  borderRadius: 'var(--tj-radius-md)',
   cursor: 'pointer',
 };
 
 const variants: Record<Variant, CSSProperties> = {
   primary: {
-    color: 'var(--tj-cta-contrast)',
-    background: 'var(--tj-brand-deep)',
+    color: 'var(--tj-on-accent)',
+    background: 'var(--tj-accent)',
   },
   secondary: {
-    color: 'var(--tj-brand-deep)',
-    background: 'var(--tj-surface)',
+    color: 'var(--tj-ink)',
+    background: 'var(--tj-canvas)',
     borderColor: 'var(--tj-hairline-strong)',
   },
   ghost: {
-    color: 'var(--tj-brand-deep)',
+    color: 'var(--tj-accent-deep)',
     background: 'transparent',
     borderColor: 'var(--tj-hairline-strong)',
   },
   danger: {
-    color: 'var(--tj-on-dark)',
-    background: 'var(--tj-danger-solid)',
+    color: 'var(--tj-on-accent)',
+    background: 'var(--tj-danger)',
   },
   'danger-ghost': {
-    color: 'var(--tj-danger-text)',
+    color: 'var(--tj-danger)',
     background: 'transparent',
-    borderColor: 'var(--tj-danger-text)',
+    borderColor: 'var(--tj-danger)',
   },
 };

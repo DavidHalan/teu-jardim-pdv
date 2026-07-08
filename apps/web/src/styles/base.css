@@ -53,15 +53,15 @@ button {
   font-family: var(--tj-font-ui);
   font-size: var(--tj-fs-body);
   color: var(--tj-ink);
-  background: var(--tj-surface);
+  background: var(--tj-surface-1);
   border: 1px solid var(--tj-hairline);
-  border-radius: var(--tj-radius-input);
+  border-radius: var(--tj-radius-md);
   outline: none;
   transition: border-color 120ms ease, box-shadow 120ms ease;
 }
 .tj-input:focus-visible {
-  border-color: var(--tj-focus);
-  box-shadow: 0 0 0 3px var(--tj-brand-pale);
+  border-color: var(--tj-accent);
+  box-shadow: 0 0 0 3px var(--tj-accent-tint);
 }
 .tj-input::placeholder {
   color: var(--tj-faint);
@@ -79,11 +79,10 @@ button {
 }
 
 .tj-card {
-  transition: transform 80ms ease, border-color 120ms ease, box-shadow 120ms ease;
+  transition: transform 80ms ease, border-color 120ms ease;
 }
 .tj-card:not(:disabled):hover {
   border-color: var(--tj-hairline-strong);
-  box-shadow: var(--tj-shadow-hover);
 }
 
 @media (prefers-reduced-motion: reduce) {
