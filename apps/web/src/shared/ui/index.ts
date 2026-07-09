@@ -11,3 +11,7 @@ export { Segmented } from './Segmented';
 export { ScreenHeader } from './ScreenHeader';
 export { ComandaTile } from './ComandaTile';
 export { ThemeToggle } from './ThemeToggle';
+export { Kbd } from './Kbd';
+export { KpiTile } from './KpiTile';
+export { StatusBar } from './StatusBar';
+export { FilterChip } from './FilterChip';

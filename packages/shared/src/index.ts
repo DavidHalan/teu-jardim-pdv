@@ -224,6 +224,10 @@ export interface AccountSummaryDto {
   number: number;
   total: string;
   itemCount: number;
+  /** ISO — quando a conta foi aberta (staleness/vislumbre no quadro). */
+  openedAt: string;
+  /** Nome de quem abriu a conta (rastreio no quadro). */
+  openedBy: string;
 }
 
 /** GET /accounts — contas OPEN da operação corrente. */

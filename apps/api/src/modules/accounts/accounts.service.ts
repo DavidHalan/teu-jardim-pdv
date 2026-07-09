@@ -106,7 +106,10 @@ export class AccountsService {
     const rows = await this.prisma.account.findMany({
       where: { businessSessionId: session.id, status: 'OPEN' },
       orderBy: [{ tabType: 'asc' }, { number: 'asc' }],
-      include: { items: { where: { NOT: { kdsStatus: 'CANCELED' } }, select: { id: true } } },
+      include: {
+        items: { where: { NOT: { kdsStatus: 'CANCELED' } }, select: { id: true } },
+        openedBy: { select: { name: true } },
+      },
     });
 
     return {
@@ -117,6 +120,8 @@ export class AccountsService {
           number: a.number,
           total: a.total.toFixed(2),
           itemCount: a.items.length,
+          openedAt: a.openedAt.toISOString(),
+          openedBy: a.openedBy.name,
         }),
       ),
     };
