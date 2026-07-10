@@ -223,8 +223,8 @@ const styles: Record<string, CSSProperties> = {
     fontSize: '14px',
     fontWeight: 500,
     borderRadius: 'var(--tj-radius-input)',
-    color: 'var(--tj-ready-text)',
-    background: 'var(--tj-ready-pale)',
+    color: 'var(--tj-ok)',
+    background: 'var(--tj-ok-tint)',
   },
   listTitle: {
     margin: 'var(--tj-space-2) 0 0',
@@ -246,5 +246,5 @@ const styles: Record<string, CSSProperties> = {
   name: { fontSize: '15px', fontWeight: 500, color: 'var(--tj-body)' },
   meta: { fontSize: '13px', color: 'var(--tj-faint)' },
   balance: { fontSize: '16px', fontWeight: 600, color: 'var(--tj-ink)' },
-  negative: { color: 'var(--tj-danger-text)' },
+  negative: { color: 'var(--tj-danger)' },
 };
