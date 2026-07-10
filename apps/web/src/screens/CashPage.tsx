@@ -728,8 +728,8 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 'var(--tj-fs-body-sm)',
     fontWeight: 500,
     borderRadius: 'var(--tj-radius-input)',
-    color: 'var(--tj-ready-text)',
-    background: 'var(--tj-ready-pale)',
+    color: 'var(--tj-ok)',
+    background: 'var(--tj-ok-tint)',
   },
   cashListTitle: {
     margin: 'var(--tj-space-4) 0 var(--tj-space-2)',
@@ -764,7 +764,7 @@ const styles: Record<string, CSSProperties> = {
     whiteSpace: 'nowrap',
   },
   cashRowAmount: { fontSize: '16px', fontWeight: 600, color: 'var(--tj-ink)' },
-  cashRowOut: { color: 'var(--tj-cooking-text)' },
+  cashRowOut: { color: 'var(--tj-warn)' },
   payItem: { display: 'grid' },
   payAccounts: { fontSize: '14px', fontWeight: 600, color: 'var(--tj-body)' },
   payMethods: { fontSize: '13px', color: 'var(--tj-faint)' },
@@ -783,6 +783,6 @@ const styles: Record<string, CSSProperties> = {
     gap: 'var(--tj-space-3)',
   },
   summaryValueNum: { margin: 0, fontSize: '18px', fontWeight: 700, color: 'var(--tj-ink)' },
-  diffPos: { color: 'var(--tj-ready-text)' },
-  diffNeg: { color: 'var(--tj-danger-text)' },
+  diffPos: { color: 'var(--tj-ok)' },
+  diffNeg: { color: 'var(--tj-danger)' },
 };

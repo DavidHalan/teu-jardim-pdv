@@ -196,7 +196,7 @@ export function PayScreen(): React.JSX.Element {
             <span style={styles.accountName}>{accountLabel(account)}</span>
             {account.discountTotal !== '0.00' ? (
               <div style={styles.discountRow}>
-                <span style={styles.summaryLabel}>Subtotal</span>
+                <span style={styles.summaryLabel}>(+) Subtotal</span>
                 <span style={styles.discountValue} className="tj-tnum">
                   {formatBRL(account.subtotal)}
                 </span>
@@ -204,7 +204,7 @@ export function PayScreen(): React.JSX.Element {
             ) : null}
             {account.discountTotal !== '0.00' ? (
               <div style={styles.discountRow}>
-                <span style={styles.summaryLabel}>Desconto</span>
+                <span style={styles.summaryLabel}>(−) Desconto</span>
                 <span style={styles.discountAmount} className="tj-tnum">
                   − {formatBRL(account.discountTotal)}
                 </span>
@@ -388,7 +388,7 @@ const styles: Record<string, CSSProperties> = {
   },
   discountRow: { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' },
   discountValue: { fontSize: '16px', fontWeight: 500, color: 'var(--tj-muted)' },
-  discountAmount: { fontSize: '16px', fontWeight: 500, color: 'var(--tj-danger-text)' },
+  discountAmount: { fontSize: '16px', fontWeight: 500, color: 'var(--tj-danger)' },
   totalRow: {
     display: 'flex',
     alignItems: 'baseline',
@@ -419,8 +419,8 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: 'var(--tj-font-ui)',
     fontSize: '13px',
     fontWeight: 600,
-    color: 'var(--tj-brand-deep)',
-    background: 'var(--tj-brand-pale)',
+    color: 'var(--tj-accent-deep)',
+    background: 'var(--tj-accent-tint)',
     border: 'none',
     borderRadius: 'var(--tj-radius-pill)',
     cursor: 'pointer',
@@ -491,12 +491,14 @@ const styles: Record<string, CSSProperties> = {
     alignItems: 'baseline',
     justifyContent: 'space-between',
     padding: 'var(--tj-space-3) var(--tj-space-4)',
-    background: 'var(--tj-surface)',
-    border: '1px solid var(--tj-hairline)',
+    background: 'var(--tj-canvas)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--tj-hairline)',
     borderRadius: 'var(--tj-radius-md)',
     transition: 'background 200ms ease, border-color 200ms ease',
   },
-  remainingPaid: { background: 'var(--tj-brand-pale)', borderColor: 'var(--tj-brand)' },
+  remainingPaid: { background: 'var(--tj-accent-tint)', borderColor: 'var(--tj-accent)' },
   remainingLabel: { fontSize: '15px', fontWeight: 600, color: 'var(--tj-body)' },
   remainingValue: { fontSize: '24px', fontWeight: 700, color: 'var(--tj-ink)' },
 
