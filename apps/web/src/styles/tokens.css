@@ -52,7 +52,7 @@
   --tj-fs-eyebrow: 10.5px;
   --tj-fs-ui: 13.5px;
   --tj-fs-numeric-lg: 24px;
-  /* escala legada v1 (em uso nas telas atuais; some na D7) */
+  /* escala de tamanhos (px fixo, product register) — em uso nas telas */
   --tj-fs-display-xl: 40px;
   --tj-fs-display-lg: 30px;
   --tj-fs-title: 20px;
@@ -96,50 +96,12 @@
 
   /* ── Movimento ────────────────────────────────────────────────────────── */
   --tj-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-
-  /* ── Aliases legados v1 → v2 (REMOVER na fatia D7) ────────────────────── */
-  --tj-brand:        var(--tj-accent);
-  --tj-brand-mid:    var(--tj-accent);
-  --tj-brand-deep:   var(--tj-accent);      /* CTA v1 → CTA v2 */
-  --tj-brand-forest: var(--tj-ink);
-  --tj-brand-pale:   var(--tj-accent-tint);
-  --tj-canvas-soft:  var(--tj-surface-1);
-  --tj-surface:      var(--tj-canvas);      /* cartão v1 (quase-branco) → canvas v2 + hairline */
-  --tj-on-dark:       var(--tj-on-accent);
-  --tj-on-dark-muted: oklch(0.775 0.0154 111.0);
-  --tj-olive:        var(--tj-accent);
-  --tj-olive-mid:    var(--tj-accent);
-  --tj-cream:        var(--tj-canvas);
-  --tj-cta:          var(--tj-accent);
-  --tj-cta-contrast: var(--tj-on-accent);
-  --tj-pale:         var(--tj-accent-tint);
-  /* status v1 (dot/texto/pale) → v2 (solid/tint) */
-  --tj-ready:        var(--tj-ok);
-  --tj-ready-text:   var(--tj-ok);
-  --tj-ready-pale:   var(--tj-ok-tint);
-  --tj-cooking:      var(--tj-warn);
-  --tj-cooking-text: var(--tj-warn);
-  --tj-cooking-pale: var(--tj-warn-tint);
-  --tj-pending:      var(--tj-muted);
-  --tj-pending-text: var(--tj-body);
-  --tj-pending-pale: var(--tj-surface-2);
-  --tj-danger-solid: var(--tj-danger);
-  --tj-danger-text:  var(--tj-danger);
-  --tj-danger-pale:  var(--tj-danger-tint);
-  --tj-info-text:    var(--tj-info);
-  --tj-info-pale:    var(--tj-info-tint);
-  /* terroso v1 (empty state/ilustração) — v2 não tem família terrosa */
-  --tj-clay:      var(--tj-warn);
-  --tj-clay-pale: var(--tj-warn-tint);
-  --tj-wood:      var(--tj-body);
-  --tj-bloom:     var(--tj-danger);
 }
 
 /*
  * Tema escuro v2 — derivado: mesma escada de superfícies invertida (Linear é nativo
  * escuro; conversão direta). Aplicado via [data-theme="dark"] (no-flash em index.html,
- * localStorage 'tj.theme' — infra v1 mantida). Só sobrescreve VALORES dos canônicos;
- * aliases legados resolvem via var() automaticamente.
+ * localStorage 'tj.theme' — infra mantida). Só sobrescreve VALORES dos tokens canônicos.
  * Regra do DESIGN v2: CTA no escuro = accent CLARO com texto INK (7.8:1), não branco.
  */
 :root[data-theme='dark'] {
@@ -171,11 +133,6 @@
   --tj-danger-tint: oklch(0.310 0.0650 33.0);
   --tj-info:        oklch(0.800 0.0850 232.0);
   --tj-info-tint:   oklch(0.300 0.0450 236.0);
-
-  /* legados que não podem seguir o var() padrão no escuro */
-  --tj-on-dark-muted: oklch(0.775 0.0154 111.0);
-  --tj-pending-text:  var(--tj-body);
-  --tj-pending-pale:  var(--tj-surface-2);
 
   /* elevação: overlay real só */
   --tj-shadow-pop: 0 -8px 32px oklch(0 0 0 / 0.55);

@@ -6,9 +6,9 @@ import { Alert, Button, Card, TextField, ThemeToggle } from '../shared/ui';
 
 /**
  * Tela de login do PDV (garçom no celular / caixa no PC, na LAN). Primeira
- * impressão do produto: clima garden-to-table do Teu Jardim, não formulário
- * genérico. Tema claro (canvas creme), cartão único centrado, tipografia Inter
- * (peso/tamanho para hierarquia). Não navega — o router redireciona no sucesso (Task 14).
+ * impressão do produto (design v2 "Terminal"): canvas neutro, cartão único
+ * centrado, tipografia Inter (peso/tamanho para hierarquia). Não navega — o
+ * router redireciona no sucesso.
  */
 export function Login(): React.JSX.Element {
   const { login } = useAuth();

@@ -86,7 +86,7 @@ const styles: Record<string, CSSProperties> = {
     zIndex: 50,
     display: 'grid',
     gap: '1px',
-    background: 'var(--tj-cooking-pale)',
+    background: 'var(--tj-warn-tint)',
     borderBottom: '1px solid var(--tj-hairline)',
   },
   row: {
@@ -99,7 +99,7 @@ const styles: Record<string, CSSProperties> = {
   text: {
     fontSize: '15px',
     lineHeight: 1.4,
-    color: 'var(--tj-cooking-text)',
+    color: 'var(--tj-warn)',
   },
   ackBtn: { minHeight: '40px', padding: '0 var(--tj-space-3)', fontSize: '14px', flexShrink: 0 },
 };
