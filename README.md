@@ -6,9 +6,11 @@ Sistema de **PDV (ponto de venda) local-first** para o restaurante **Teu Jardim*
 e comunicação verbal no salão, opera **sem internet** (um servidor na rede local é a única fonte
 da verdade) e prioriza velocidade no atendimento por **pulseira, comanda e mesa**.
 
-> **Duplo propósito:** roda em produção real no restaurante **e** serve de peça de portfólio de
-> engenharia (modelagem de domínio, arquitetura, processo). O código é em inglês; a comunicação de
-> negócio e a documentação interna, em português.
+> **Projeto próprio de portfólio.** Não está em produção e não houve cliente contratante — o
+> restaurante Teu Jardim é um estabelecimento real usado como domínio de estudo. Fatias S1–S3
+> entregues, S4 em aberto. O objetivo do repositório é demonstrar modelagem de domínio,
+> arquitetura e processo de entrega. O código é em inglês; a comunicação de negócio e a
+> documentação interna, em português.
 
 ## Índice
 
